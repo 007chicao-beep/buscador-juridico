@@ -31,7 +31,7 @@ def inicializar_sistema_por_link():
     # Baixa o arquivo ZIP usando gdown (evita bloqueios de download do Google)
     if not os.path.exists(arquivo_local_zip):
         try:
-            gdown.download(link_download_direto, arquivo_local_zip, quiet=False, fuzzy=True)
+            gdown.download(link_download_direto, arquivo_local_zip, quiet=False)
         except Exception as e:
             return None, f"❌ Erro ao baixar a base de dados via GDown: {e}"
             

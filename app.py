@@ -28,42 +28,44 @@ def inicializar_sistema_real():
         return None, [], "❌ Erro: Nenhuma planilha Excel (.xlsx) foi encontrada na pasta do projeto."
         
     try:
-        linha_cabecalho = 0
-        df_teste = pd.read_excel(caminho_excel, nrows=15, header=None)
-        for i, row in df_teste.iterrows():
-            texto_linha = " ".join([str(val).upper() for val in row.values if pd.notna(val)])
-            if any(termo in texto_linha for termo in ['ISBN', 'CODIGO', 'TITULO', 'AUTOR', 'TÍTULO']):
-                linha_cabecalho = i
-                break
-                
-        df = pd.read_excel(caminho_excel, header=linha_cabecalho)
+        # Abre a planilha na linha 2 (que foi onde o Colab detectou o cabeçalho real)
+        df = pd.read_excel(caminho_excel, header=1)
         
-        # Identificação automática das colunas principais
-        col_isbn = next((c for c in df.columns if any(t in str(c).upper() for t in ['ISBN', 'COD'])), df.columns[0] if len(df.columns) > 0 else '')
-        col_tit = next((c for c in df.columns if any(t in str(c).upper() for t in ['TIT', 'NOM'])), df.columns[1] if len(df.columns) > 1 else '')
-        col_aut = next((c for c in df.columns if 'AUT' in str(c).upper()), df.columns[2] if len(df.columns) > 2 else 'Desconhecido')
-        col_pre = next((c for c in df.columns if any(t in str(c).upper() for t in ['PRE', 'VAL'])), 'Sob consulta')
+        # Mapeamento com os nomes exatos identificados no seu terminal
+        col_isbn = 'ISBN-EAN' if 'ISBN-EAN' in df.columns else df.columns[0]
+        col_tit = 'Título - sub.título' if 'Título - sub.título' in df.columns else df.columns[1]
+        col_aut = 'Autor' if 'Autor' in df.columns else df.columns[2]
+        
+        # Busca flexível para preço e índice nas colunas restantes
+        col_pre = next((c for c in df.columns if any(t in str(c).upper() for t in ['PRE', 'VAL', 'R$', 'PRICE'])), None)
         col_ind = next((c for c in df.columns if any(t in str(c).upper() for t in ['IND', 'SUM', 'SUMA'])), None)
 
         documents = []
         lista_autores = set()
         
         for _, row in df.iterrows():
-            raw_isbn = str(row.get(col_isbn, '')).strip().replace('.0', '')
+            # Limpa o ISBN
+            raw_isbn = str(row.get(col_isbn, '')).strip().split('.')[0]
             isbn_livro = "".join([c for c in raw_isbn if c.isdigit()])
             if not isbn_livro or len(isbn_livro) < 5: 
                 continue
                 
             titulo_livro = str(row.get(col_tit, 'Sem Título')).strip()
             autor_livro = str(row.get(col_aut, 'Desconhecido')).strip()
-            preco_livro = str(row.get(col_pre, 'Sob consulta')).strip()
             
-            # FORÇANDO A LEITURA DA COLUNA R (Índice 17 na programação, pois começa no 0)
+            # Captura o preço real em Reais da sua planilha
+            preco_raw = str(row.get(col_pre, '')).strip() if col_pre else ""
+            if not preco_raw or preco_raw.lower() == 'nan' or preco_raw == '0' or preco_raw == '0.0':
+                preco_livro = "Sob consulta"
+            else:
+                preco_limpo = preco_raw.upper().replace('R$', '').replace('$', '').strip()
+                preco_livro = f"R$ {preco_limpo}"
+            
+            # Puxa o conteúdo textual direto da coluna R (18ª coluna do Excel)
             txt_res = ""
             if len(row) >= 18:
-                txt_res = str(row.iloc[17]).strip()
+                txt_res = str(row.iloc[17]).strip() # Índice 17 é a coluna R
             
-            # Trata casos onde a célula está vazia ou veio como texto 'nan'
             if not txt_res or txt_res.lower() == 'nan' or txt_res == '':
                 txt_res = "Resumo analítico disponível sob consulta na secretaria da Editora."
             
@@ -98,7 +100,7 @@ def inicializar_sistema_real():
         return None, [], f"❌ Erro ao ler a planilha Excel: {e}"
 
 # Inicializa o processador inteligente
-with st.spinner("Lendo sua planilha real e processando a coluna de resumos (Aguarde)..."):
+with st.spinner("Lendo sua planilha real e processando preços e resumos (Aguarde)..."):
     retriever, autores_disponiveis, mensagem = inicializar_sistema_real()
 
 if retriever is None:
@@ -136,22 +138,22 @@ if resultados:
     
     for idx, livre in enumerate(resultados):
         m = livre.metadata
-        col_img, col_dados = st.columns([1, 4]) # Dá mais espaço para o texto respirar
+        col_img, col_dados = st.columns([1, 4]) # Dá o espaçamento perfeito para a tela
         
         with col_img:
-            # Tenta carregar do site corporativo. Se não achar, a caixa se adapta elegantemente
+            # Puxa a capa oficial usando a URL dinâmica do ISBN real da planilha
             link_capa_dinamico = f"https://edicionesolejnik.com.br{m['isbn']}.jpg"
-            st.image(link_capa_dinamico, width=150)
+            st.image(link_capa_dinamico, width=140)
                 
         with col_dados:
             st.markdown(f"### {m['titulo']}")
-            st.markdown(f"**Autor:** {m['autor']} | **ISBN:** {m['isbn']} | **Preço:** R$ {m['preco']}")
+            st.markdown(f"**Autor:** {m['autor']} | **ISBN:** {m['isbn']} | **Preço:** {m['preco']}")
             
-            with st.expander("📖 Ver Sumário / Índice Completo"):
+            with st.expander("Base de Dados 📖 Ver Sumário / Índice Completo"):
                 st.text(m['indice'])
                 
             with st.expander("📝 Ver Resumo Técnico / Resenha"):
-                st.write(m['resumo']) # Exibirá o texto real contido na coluna R
+                st.write(m['resumo']) # Exibe o conteúdo real lido da coluna R
                 
             link_compra = "https://edicionesolejnik.com.br"
             st.markdown(f"<a href='{link_compra}' target='_blank'><button style='background-color:#1E3A8A; color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer;'>🛒 Comprar no Site Oficial</button></a>", unsafe_allow_html=True)

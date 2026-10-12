@@ -13,19 +13,34 @@ st.markdown("<h3 style='text-align: center; color: #555;'>Buscador Bibliográfic
 st.markdown("---")
 
 # =====================================================================
-# INDICAÇÃO AUTOMÁTICA DE RESULTADOS COM CACHE SEGURO (PRO)
+# INDICAÇÃO AUTOMÁTICA DE RESULTADOS COM CACHE SEGURO
 # =====================================================================
 @st.cache_resource
 def inicializar_sistema_estatico():
-    # Criação de um banco de conhecimento inicial seguro e leve para destravar a tela
-    # Na próxima atualização, colocaremos a sua planilha processada aqui de forma nativa
     exemplo_livros = [
-        {"titulo": "Tratado de Derecho Constitucional", "autor": "Carlos Olejnik", "isbn": "9789563920011", "resumo": "Estudo profundo sobre direitos fundamentais, separação de poderes, controle de constitucionalidade e a dignidade humana no ordenamento contemporâneo.", "indice": "Capítulo I: Teoria Geral. Capítulo II: Direitos Fundamentais.", "preco": "150.00"},
-        {"titulo": "Manual de Derecho Penal y Criminología", "autor": "Enrique Olejnik", "isbn": "9789563920022", "resumo": "Análise técnica de crimes cibernéticos, tipicidade penal, processo criminal, teorias da pena e aplicação no direito comparado latino-americano.", "indice": "Capítulo I: Criminologia Moderna. Capítulo II: Crimes de Informática.", "preco": "135.00"}
+        {
+            "titulo": "Tratado de Derecho Constitucional", 
+            "autor": "Carlos Olejnik", 
+            "isbn": "9789563920011", 
+            "resumo": "Estudo profundo sobre direitos fundamentais, separação de poderes, controle de constitucionalidade e a dignidade humana no ordenamento contemporâneo. A obra esmiúça de forma integral as garantias processuais do cidadão, trazendo vasta jurisprudência comparada da América Latina e Europa, servindo como guia indispensável para pareceres complexos de controle concentrado.", 
+            "indice": "Capítulo I: Teoria Geral do Estado.\nCapítulo II: Direitos Fundamentais Nacionais.\nCapítulo III: Mecanismos de Controle de Constitucionalidade.", 
+            "preco": "150.00"
+        },
+        {
+            "titulo": "Manual de Derecho Penal y Criminología", 
+            "autor": "Enrique Olejnik", 
+            "isbn": "9789563920022", 
+            "resumo": "Análise técnica abrangente de crimes cibernéticos, tipicidade penal, teoria do delito, processo criminal, teorias da pena e aplicação prática no direito penal econômico. Traz um panorama completo das novas modalidades de fraudes digitais, lavagem de capitais e os critérios dogmáticos de imputação objetiva nas corporações modernas.", 
+            "indice": "Capítulo I: Criminologia Moderna.\nCapítulo II: Elementos Clássicos do Delito.\nCapítulo III: Crimes de Informática e Inovações Tecnológicas.", 
+            "preco": "135.00"
+        }
     ]
     
     documents = []
+    lista_autores = set()
+    
     for livro in exemplo_livros:
+        lista_autores.add(livro['autor'])
         texto_busca = f"Livro: {livro['titulo']} | Autor: {livro['autor']} | Resumo: {livro['resumo']} | Índice: {livro['indice']}"
         metadados = {
             "isbn": livro['isbn'],
@@ -39,37 +54,50 @@ def inicializar_sistema_estatico():
         
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     vectorstore = Chroma.from_documents(documents, embeddings)
-    return vectorstore.as_retriever(search_kwargs={"k": 2}), "✅ Acervo Inteligente da Editora conectado com sucesso!"
+    
+    return vectorstore.as_retriever(search_kwargs={"k": 2}), sorted(list(lista_autores)), "✅ Acervo Inteligente da Editora conectado com sucesso!"
 
-# Inicializa o processador inteligente de busca semântica de forma imune a quedas de rede
+# Inicializa o processador inteligente de forma estável
 with st.spinner("Conectando com segurança ao catálogo da Editora (Aguarde)..."):
-    retriever, mensagem = inicializar_sistema_estatico()
+    retriever, autores_disponiveis, mensagem = inicializar_sistema_estatico()
 
 # =====================================================================
-# TELA DE PESQUISA DO ADVOGADO
+# TELA DE PESQUISA DO ADVOGADO COM RECURSO DE FILTRO POR AUTOR
 # =====================================================================
 st.sidebar.success(mensagem)
-st.sidebar.markdown("### Informações do Sistema")
-st.sidebar.info("Buscador oficial conectado com o acervo digital da Ediciones Olejnik.")
+st.sidebar.markdown("### Menu de Busca")
 
-pergunta = st.text_input("🔍 Descreva o caso jurídico ou tema que você está trabalhando:", 
-                        placeholder="Ex: Responsabilidade civil por erro médico ou crimes cibernéticos no direito penal...")
+tipo_busca = st.sidebar.radio("Selecione o método de consulta:", ["Pesquisa por Tema / Caso (IA)", "Filtrar por Autor"])
 
-if pergunta:
-    with st.spinner("Buscando correlações doutrinárias..."):
-        resultados = retriever.invoke(pergunta)
-        
+resultados = []
+
+if tipo_busca == "Pesquisa por Tema / Caso (IA)":
+    pergunta = st.text_input("🔍 Descreva o caso jurídico ou tema que você está trabalhando:", 
+                            placeholder="Ex: Responsabilidade civil por erro médico ou direito penal...")
+    if pergunta:
+        with st.spinner("Buscando correlações doutrinárias..."):
+            resultados = retriever.invoke(pergunta)
+else:
+    autor_selecionado = st.selectbox("📚 Selecione o Autor que deseja consultar:", [""] + autores_disponiveis)
+    if autor_selecionado:
+        with st.spinner("Puxando catálogo do autor..."):
+            resultados = retriever.invoke(f"Autor: {autor_selecionado}")
+
+# =====================================================================
+# EXIBIÇÃO INTEGRAL DAS INFORMAÇÕES
+# =====================================================================
+if resultados:
     st.subheader("📚 Obras Sugeridas:")
     st.write("---")
     
     for idx, livre in enumerate(resultados):
         m = livre.metadata
-        col_img, col_dados = st.columns([1, 4])
+        col_img, col_dados = st.columns([1, 4]) # Reserva espaço correto para a foto
         
         with col_img:
-            # Puxa dinamicamente a foto da capa usando o ISBN direto da internet de forma leve
+            # Vinculação direta com o seu site usando o ISBN
             link_capa_dinamico = f"https://edicionesolejnik.com.br{m['isbn']}.jpg"
-            st.image("https://placeholder.com", width=150)
+            st.image(link_capa_dinamico, width=150)
                 
         with col_dados:
             st.markdown(f"### {m['titulo']}")
@@ -77,7 +105,7 @@ if pergunta:
             
             # Abas interativas expansíveis organizadas sob demanda
             with st.expander("📖 Ver Sumário / Índice Completo"):
-                st.write(m['indice'])
+                st.text(m['indice'])
                 
             with st.expander("📝 Ver Resumo Técnico / Resenha"):
                 st.write(m['resumo'])

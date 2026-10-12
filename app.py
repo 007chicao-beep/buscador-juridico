@@ -14,9 +14,10 @@ st.markdown("<h3 style='text-align: center; color: #555;'>Buscador Bibliográfic
 st.markdown("---")
 
 # =====================================================================
-# LEITURA DIRETA E REAL DA PLANILHA (SEM CACHE TRANCADO)
+# LEITURA DA PLANILHA EXCEL REAL COM COORDENADAS EXATAS (COM CACHE)
 # =====================================================================
-def inicializar_sistema_real_direto():
+@st.cache_resource
+def inicializar_sistema_real_mapeado():
     caminho_excel = None
     for arquivo in os.listdir('.'):
         if arquivo.lower().endswith(('.xlsx', '.xls')) and not arquivo.startswith('~$'):
@@ -27,10 +28,10 @@ def inicializar_sistema_real_direto():
         return None, [], "❌ Erro: Nenhuma planilha Excel (.xlsx) foi encontrada na pasta do projeto."
         
     try:
-        # Abre o Excel pulando a linha do logotipo para ler os cabeçalhos reais oficiais
+        # Abre o Excel pulando a linha inicial para capturar o cabeçalho oficial
         df = pd.read_excel(caminho_excel, header=1)
         
-        # MAPEAMENTO FIXO COM OS NOMES EXATOS DA SUA PLANILHA ENVIADA
+        # DEFINIÇÃO FIXA DAS COLUNAS CORPORATIVAS VALIDATORIAS
         col_isbn = 'ISBN-EAN'
         col_tit = 'Titulo - Sub.titulo'
         col_aut = 'Autor'
@@ -51,11 +52,11 @@ def inicializar_sistema_real_direto():
             titulo_livro = str(row.get(col_tit, 'Sem Título')).strip()
             autor_livro = str(row.get(col_aut, 'Desconhecido')).strip()
             
-            # Trava de segurança contra linhas deslocadas ou em branco
+            # Trava de segurança contra repetições de códigos no título
             if titulo_livro == isbn_livro or titulo_livro.lower() in ['nan', '']:
                 continue
 
-            # Captura o valor real contido na coluna REALES
+            # Captura e tratamento do Preço Real em Reais
             preco_raw = str(row.get(col_pre, '')).strip()
             if not preco_raw or preco_raw.lower() in ['nan', '0', '0.0', '']:
                 preco_livro = "Sob consulta"
@@ -83,18 +84,19 @@ def inicializar_sistema_real_direto():
             documents.append(Document(page_content=texto_busca, metadata=metadados))
             
         if len(documents) == 0:
-            return None, [], "❌ Erro ao associar as colunas oficiais. Verifique a planilha Excel."
+            return None, [], "❌ Erro ao associar as colunas oficiais. Verifique os dados da planilha."
             
         embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
         vectorstore = Chroma.from_documents(documents, embeddings)
         
-        return vectorstore.as_retriever(search_kwargs={"k": 2}), sorted(list(lista_autores)), f"✅ Conexão estável! {len(documents)} obras jurídicas carregadas."
+        return vectorstore.as_retriever(search_kwargs={"k": 2}), sorted(list(lista_autores)), f"✅ Conexão estável! {len(documents)} obras jurídicas da Ediciones Olejnik operacionais."
         
     except Exception as e:
         return None, [], f"❌ Erro ao ler a estrutura do arquivo Excel: {e}"
 
-# Executa a inicialização limpa a cada carregamento para garantir a sincronia
-retriever, autores_disponiveis, mensagem = inicializar_sistema_real_direto()
+# Executa a inicialização de forma segura usando cache de hardware
+with st.spinner("Construindo o cérebro cognitivo do acervo Olejnik (Aguarde 1 minuto)..."):
+    retriever, autores_disponiveis, mensagem = inicializar_sistema_real_mapeado()
 
 if retriever is None:
     st.error(mensagem)
@@ -131,9 +133,10 @@ if resultados:
     
     for idx, livre in enumerate(resultados):
         m = livre.metadata
-        col_img, col_dados = st.columns([1, 4]) # Define proporção exata da tela (Capa esquerda, texto direita)
+        col_img, col_dados = st.columns([1, 4]) # Reserva o espaço proporcional exato em tela
         
         with col_img:
+            # Vinculação direta com o servidor de imagens oficial
             link_capa_dinamico = f"https://edicionesolejnik.com.br{m['isbn']}.jpg"
             st.image(link_capa_dinamico, width=140)
                 

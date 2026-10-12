@@ -6,3 +6,4 @@ chromadb
 sentence-transformers
 langchain-huggingface
 python-docx
+gdown

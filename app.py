@@ -31,7 +31,7 @@ def inicializar_sistema_completo():
     pasta_extracao_textos = "extracao_total"
     pasta_destino_capas = "capas"
     
-    # 1. DOWNLOAD E EXTRAÇÃO DOS TEXTOS / PLANILHA
+    # 1. DOWNLOAD E EXTRAÇÃO DOS TEXTOS / PLANILHA (URL CORRIGIDA OFICIAL)
     if not os.path.exists(pasta_extracao_textos):
         try:
             url_textos = f'https://google.com{ID_TEXTOS_DRIVE}'
@@ -43,7 +43,7 @@ def inicializar_sistema_completo():
         except Exception as e:
             return None, None, f"❌ Erro ao baixar base de textos: {e}"
 
-    # 2. DOWNLOAD E EXTRAÇÃO DAS 1.890 CAPAS
+    # 2. DOWNLOAD E EXTRAÇÃO DAS 1.890 CAPAS (URL CORRIGIDA OFICIAL)
     if not os.path.exists(pasta_destino_capas):
         try:
             url_capas = f'https://google.com{ID_CAPAS_DRIVE}'
@@ -157,7 +157,7 @@ st.sidebar.markdown("### Configurações do Mecanismo")
 st.sidebar.info("As buscas por IA analisam o contexto jurídico integral das teses. Os filtros tradicionais localizam termos exatos na planilha.")
 
 # =====================================================================
-# SISTEMA DE ABAS: RETORNANDO AS OPÇÕES QUE VOCÊ TINHA
+# SISTEMA DE ABAS
 # =====================================================================
 aba_ia, aba_tradicional = st.tabs(["🧠 Pesquisa Cognitiva por IA (Doutrina)", "🔍 Consulta por Filtros (Autor / Tema)"])
 

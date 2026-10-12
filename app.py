@@ -18,7 +18,6 @@ st.markdown("---")
 # =====================================================================
 @st.cache_resource
 def inicializar_sistema_real():
-    # Localiza automaticamente qualquer arquivo Excel presente na pasta do GitHub
     caminho_excel = None
     for arquivo in os.listdir('.'):
         if arquivo.lower().endswith(('.xlsx', '.xls')) and not arquivo.startswith('~$'):
@@ -29,7 +28,6 @@ def inicializar_sistema_real():
         return None, [], "❌ Erro: Nenhuma planilha Excel (.xlsx) foi encontrada na pasta do projeto."
         
     try:
-        # Varre as primeiras linhas para ignorar logotipos ou linhas em branco e achar o cabeçalho real
         linha_cabecalho = 0
         df_teste = pd.read_excel(caminho_excel, nrows=15, header=None)
         for i, row in df_teste.iterrows():
@@ -40,12 +38,11 @@ def inicializar_sistema_real():
                 
         df = pd.read_excel(caminho_excel, header=linha_cabecalho)
         
-        # Identificação automática e flexível das colunas da planilha
+        # Identificação automática das colunas principais
         col_isbn = next((c for c in df.columns if any(t in str(c).upper() for t in ['ISBN', 'COD'])), df.columns[0] if len(df.columns) > 0 else '')
         col_tit = next((c for c in df.columns if any(t in str(c).upper() for t in ['TIT', 'NOM'])), df.columns[1] if len(df.columns) > 1 else '')
         col_aut = next((c for c in df.columns if 'AUT' in str(c).upper()), df.columns[2] if len(df.columns) > 2 else 'Desconhecido')
         col_pre = next((c for c in df.columns if any(t in str(c).upper() for t in ['PRE', 'VAL'])), 'Sob consulta')
-        col_res = next((c for c in df.columns if any(t in str(c).upper() for t in ['RES', 'MINI', 'RESE'])), None)
         col_ind = next((c for c in df.columns if any(t in str(c).upper() for t in ['IND', 'SUM', 'SUMA'])), None)
 
         documents = []
@@ -61,9 +58,18 @@ def inicializar_sistema_real():
             autor_livro = str(row.get(col_aut, 'Desconhecido')).strip()
             preco_livro = str(row.get(col_pre, 'Sob consulta')).strip()
             
-            # Puxa o resumo e índice direto das colunas da planilha se existirem
-            txt_res = str(row.get(col_res, 'Resumo detalhado disponível sob consulta.')) if col_res else "Resumo detalhado disponível sob consulta."
+            # FORÇANDO A LEITURA DA COLUNA R (Índice 17 na programação, pois começa no 0)
+            txt_res = ""
+            if len(row) >= 18:
+                txt_res = str(row.iloc[17]).strip()
+            
+            # Trata casos onde a célula está vazia ou veio como texto 'nan'
+            if not txt_res or txt_res.lower() == 'nan' or txt_res == '':
+                txt_res = "Resumo analítico disponível sob consulta na secretaria da Editora."
+            
             txt_ind = str(row.get(col_ind, 'Índice completo disponível sob consulta.')) if col_ind else "Índice completo disponível sob consulta."
+            if not txt_ind or txt_ind.lower() == 'nan':
+                txt_ind = "Índice completo disponível sob consulta."
             
             if autor_livro and autor_livro != 'nan' and autor_livro != 'Desconhecido':
                 lista_autores.add(autor_livro)
@@ -91,8 +97,8 @@ def inicializar_sistema_real():
     except Exception as e:
         return None, [], f"❌ Erro ao ler a planilha Excel: {e}"
 
-# Inicializa o processador inteligente de forma estável
-with st.spinner("Lendo sua planilha real e inicializando o catálogo da Editora (Aguarde)..."):
+# Inicializa o processador inteligente
+with st.spinner("Lendo sua planilha real e processando a coluna de resumos (Aguarde)..."):
     retriever, autores_disponiveis, mensagem = inicializar_sistema_real()
 
 if retriever is None:
@@ -100,7 +106,7 @@ if retriever is None:
     st.stop()
 
 # =====================================================================
-# TELA DE PESQUISA DO ADVOGADO COM RECURSO DE FILTRO POR AUTOR
+# TELA DE PESQUISA DO ADVOGADO
 # =====================================================================
 st.sidebar.success(mensagem)
 st.sidebar.markdown("### Menu de Busca")
@@ -130,10 +136,10 @@ if resultados:
     
     for idx, livre in enumerate(resultados):
         m = livre.metadata
-        col_img, col_dados = st.columns([1, 4]) # Reserva espaço proporcional para a foto
+        col_img, col_dados = st.columns([1, 4]) # Dá mais espaço para o texto respirar
         
         with col_img:
-            # Vinculação com o link das capas usando o ISBN padrão
+            # Tenta carregar do site corporativo. Se não achar, a caixa se adapta elegantemente
             link_capa_dinamico = f"https://edicionesolejnik.com.br{m['isbn']}.jpg"
             st.image(link_capa_dinamico, width=150)
                 
@@ -141,12 +147,11 @@ if resultados:
             st.markdown(f"### {m['titulo']}")
             st.markdown(f"**Autor:** {m['autor']} | **ISBN:** {m['isbn']} | **Preço:** R$ {m['preco']}")
             
-            # Abas interativas expansíveis organizadas sob demanda
             with st.expander("📖 Ver Sumário / Índice Completo"):
                 st.text(m['indice'])
                 
             with st.expander("📝 Ver Resumo Técnico / Resenha"):
-                st.write(m['resumo'])
+                st.write(m['resumo']) # Exibirá o texto real contido na coluna R
                 
             link_compra = "https://edicionesolejnik.com.br"
             st.markdown(f"<a href='{link_compra}' target='_blank'><button style='background-color:#1E3A8A; color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer;'>🛒 Comprar no Site Oficial</button></a>", unsafe_allow_html=True)

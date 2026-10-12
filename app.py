@@ -1,7 +1,7 @@
 import streamlit as st
 import os
 import zipfile
-import urllib.request
+import gdown
 import pandas as pd
 from docx import Document as DocxReader
 from langchain_core.documents import Document
@@ -17,28 +17,31 @@ st.markdown("<h3 style='text-align: center; color: #555;'>Buscador Bibliográfic
 st.markdown("---")
 
 # =====================================================================
-# CARREGAMENTO INTELIGENTE DIRETO DO GOOGLE DRIVE (COM CACHE)
+# CARREGAMENTO SEGURO DIRETO DO GOOGLE DRIVE VIA GDOWN (COM CACHE)
 # =====================================================================
 @st.cache_resource
 def inicializar_sistema_por_link():
-    # ID de compartilhamento do seu link real do Google Drive
+    # ID real do seu arquivo extraído do seu link compartilhado
     id_drive = "1mM8fdfF8QQEkaHeFhmlyc8mYtd5SK2v6"
     link_download_direto = f"https://google.com{id_drive}"
     
     arquivo_local_zip = "aplicativo_nuvem.zip"
     pasta_extracao = "extracao_total"
     
-    # Faz o download automático do ZIP pesado direto para o servidor web da aplicação
+    # Baixa o arquivo ZIP usando gdown (evita bloqueios de download do Google)
     if not os.path.exists(arquivo_local_zip):
         try:
-            urllib.request.urlretrieve(link_download_direto, arquivo_local_zip)
+            gdown.download(link_download_direto, arquivo_local_zip, quiet=False, fuzzy=True)
         except Exception as e:
-            return None, f"❌ Erro ao puxar a base de dados do Google Drive: {e}"
+            return None, f"❌ Erro ao baixar a base de dados via GDown: {e}"
             
-    # Descompacta os arquivos na memória do servidor
+    # Descompacta os arquivos no servidor
     if not os.path.exists(pasta_extracao):
-        with zipfile.ZipFile(arquivo_local_zip, 'r') as zip_ref:
-            zip_ref.extractall(pasta_extracao)
+        try:
+            with zipfile.ZipFile(arquivo_local_zip, 'r') as zip_ref:
+                zip_ref.extractall(pasta_extracao)
+        except Exception as e:
+            return None, f"❌ Erro ao extrair o arquivo ZIP: {e}"
             
     # Procura a planilha Excel de forma dinâmica
     caminho_excel = None
@@ -65,7 +68,7 @@ def inicializar_sistema_por_link():
             
     df = pd.read_excel(caminho_excel, header=linha_cabecalho)
     
-    # Indexação instantânea dos nomes dos arquivos Word e Capas por ISBN
+    # Indexação dos nomes dos arquivos Word e Capas por ISBN
     mapa_capas, mapa_indices, mapa_resenhas = {}, {}, {}
     for cam in arquivos_na_pasta:
         nome_arq = os.path.basename(cam)
@@ -81,8 +84,8 @@ def inicializar_sistema_por_link():
         except: return ""
 
     # Identificação flexível de colunas
-    col_isbn = next((c for c in df.columns if any(t in str(c).upper() for t in ['ISBN', 'COD'])), df.columns[0])
-    col_tit = next((c for c in df.columns if any(t in str(c).upper() for t in ['TIT', 'NOM'])), df.columns[1])
+    col_isbn = next((c for c in df.columns if any(t in str(c).upper() for t in ['ISBN', 'COD'])), df.columns[0] if len(df.columns) > 0 else '')
+    col_tit = next((c for c in df.columns if any(t in str(c).upper() for t in ['TIT', 'NOM'])), df.columns[1] if len(df.columns) > 1 else '')
     col_aut = next((c for c in df.columns if 'AUT' in str(c).upper()), 'Desconhecido')
     col_pre = next((c for c in df.columns if any(t in str(c).upper() for t in ['PRE', 'VAL'])), 'Sob consulta')
 
@@ -112,7 +115,7 @@ def inicializar_sistema_por_link():
     return vectorstore.as_retriever(search_kwargs={"k": 2}), f"✅ {len(documents)} livros jurídicos Olejnik carregados com sucesso!"
 
 # Inicializa o processador inteligente de busca semântica
-with st.spinner("Conectando ao Google Drive e inicializando o catálogo da Editora (Aguarde)..."):
+with st.spinner("Conectando com segurança ao catálogo da Editora (Aguarde)..."):
     retriever, mensagem = inicializar_sistema_por_link()
 
 if retriever is None:
@@ -123,8 +126,8 @@ if retriever is None:
 # TELA DE PESQUISA DO ADVOGADO
 # =====================================================================
 st.sidebar.success(mensagem)
-st.sidebar.markdown("### Informações do Sistema")
-st.sidebar.info("Buscador oficial conectado com a nuvem da Ediciones Olejnik. Pesquise teses, conceitos jurídicos ou nomes de institutos.")
+st.sidebar.markdown("### Informações do System")
+st.sidebar.info("Buscador oficial conectado com o acervo digital da Ediciones Olejnik.")
 
 pergunta = st.text_input("🔍 Descreva o caso jurídico ou tema que você está trabalhando:", 
                         placeholder="Ex: Responsabilidade civil por erro médico ou crimes cibernéticos no direito penal...")
@@ -136,8 +139,8 @@ if pergunta:
     st.subheader("📚 Obras Sugeridas:")
     st.write("---")
     
-    for idx, livro in enumerate(resultados):
-        m = livro.metadata
+    for idx, livre in enumerate(resultados):
+        m = livre.metadata
         col_img, col_dados = st.columns([1, 4])
         
         with col_img:
@@ -150,8 +153,8 @@ if pergunta:
             st.markdown(f"### {m['titulo']}")
             st.markdown(f"**Autor:** {m['autor']} | **ISBN:** {m['isbn']} | **Preço:** R$ {m['preco']}")
             
-            # Abas interativas ocultas por padrão (só se abrem quando clicadas)
-            with st.expander("📖 Ver Sumário / Índice Completo"):
+            # Abas interativas expansíveis
+            with st.expander("Gauge 📖 Ver Sumário / Índice Completo"):
                 st.write(m['indice'])
                 
             with st.expander("📝 Ver Resumo Técnico / Resenha"):

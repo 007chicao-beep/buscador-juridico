@@ -1,151 +1,122 @@
-import streamlit as st
-import pandas as pd
 import os
-import unicodedata
+import zipfile
+import requests
+import pandas as pd
+from docx import Document as DocxReader
+import streamlit as st
 
-# Configuração visual e responsiva da aba do navegador
-st.set_page_config(page_title="Ediciones Olejnik - Buscador IA", page_icon="⚖️", layout="wide")
+# Configuração da página do Streamlit
+st.set_page_config(page_title="Buscador Jurídico", layout="wide")
 
-# Elementos de Cabeçalho com a identidade da Editora
-st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>⚖️ Ediciones Olejnik</h1>", unsafe_allow_html=True)
-st.markdown("<h3 style='text-align: center; color: #555;'>Buscador Bibliográfico Inteligente para Ciências Jurídicas</h3>", unsafe_allow_html=True)
-st.markdown("---")
+# ==============================================================================
+# 1. DOWNLOAD E EXTRAÇÃO AUTOMÁTICA DO ARQUIVO DE CAPAS DO DRIVE (1.890 FOTOS)
+# ==============================================================================
+# ID extraído do link que você enviou
+ID_CAPAS_DRIVE = "1CnfjblNWOhWWFNuq4gCs6XGKwMWW9bex"
 
-# Função auxiliar para remover acentos, cedilhas e caracteres especiais de busca
-def normalizar_texto(texto):
-    if not texto or pd.isna(texto):
-        return ""
-    texto_str = str(texto).lower().strip()
-    nfkd_form = unicodedata.normalize('NFKD', texto_str)
-    return "".join([c for c in nfkd_form if not unicodedata.combining(c)])
+arquivo_capas_zip = "capas.zip"
+pasta_destino_capas = "capas"
 
-# =====================================================================
-# LEITURA DE DADOS ULTRA-LEVE DA NOVA PLANILHA UNIFICADA
-# =====================================================================
-@st.cache_data
-def carregar_catalogo_completo_olejnik():
-    caminho_excel = "catalogo_completo_olejnik.xlsx"
-    
-    if not os.path.exists(caminho_excel):
-        for arquivo in os.listdir('.'):
-            if arquivo.lower().endswith(('.xlsx', '.xls')) and not arquivo.startswith('~$'):
-                caminho_excel = arquivo
-                break
-                
-    if not os.path.exists(caminho_excel):
-        return None, "❌ Erro: A planilha unificada 'catalogo_completo_olejnik.xlsx' não foi localizada no repositório."
+def baixar_capas_do_drive(id_drive, nome_destino):
+    url = f'https://google.com{id_drive}'
+    resposta = requests.get(url, stream=True)
+    if resposta.status_code == 200:
+        with open(nome_destino, 'wb') as f:
+            for pedaco in resposta.iter_content(chunk_size=8192):
+                f.write(pedaco)
+        return True
+    return False
+
+# Executa o download e a extração apenas uma vez ao iniciar o servidor do Streamlit
+if not os.path.exists(pasta_destino_capas):
+    with st.spinner("🚀 Inicializando servidor: Baixando e extraindo catálogo com 1.890 capas..."):
+        sucesso_download = baixar_capas_do_drive(ID_CAPAS_DRIVE, arquivo_capas_zip)
         
-    try:
-        df = pd.read_excel(caminho_excel)
-        
-        # Sincroniza e limpa as colunas oficiais geradas pelo robô extrator
-        df['ISBN-EAN'] = df['ISBN-EAN'].astype(str).str.strip().str.replace('.0', '', regex=False)
-        df['Titulo - Sub.titulo'] = df['Titulo - Sub.titulo'].astype(str).str.strip()
-        df['Autor'] = df['Autor'].astype(str).str.strip()
-        df['Reseña'] = df['Reseña'].astype(str).str.strip()
-        df['Indice_Completo'] = df['Indice_Completo'].astype(str).str.strip()
-        
-        # Cria colunas invisíveis de busca cruzada e bilíngue (removendo acentos)
-        df['busca_titulo'] = df['Titulo - Sub.titulo'].apply(normalizar_texto)
-        df['busca_autor'] = df['Autor'].apply(normalizar_texto)
-        df['busca_resena'] = df['Reseña'].apply(normalizar_texto)
-        df['busca_indice'] = df['Indice_Completo'].apply(normalizar_texto)
-        
-        # Filtra linhas inválidas ou sem título
-        df = df[df['Titulo - Sub.titulo'].notna() & (df['Titulo - Sub.titulo'] != 'nan') & (df['Titulo - Sub.titulo'] != '')]
-        return df, "✅ Catálogo mestre unificado com sucesso!"
-    except Exception as e:
-        return None, f"❌ Erro ao ler a nova planilha Excel: {e}"
+        if sucesso_download and os.path.exists(arquivo_capas_zip):
+            try:
+                with zipfile.ZipFile(arquivo_capas_zip, 'r') as zip_ref:
+                    zip_ref.extractall(pasta_destino_capas)
+                # Remove o zip temporário para não ocupar espaço desnecessário no servidor
+                os.remove(arquivo_capas_zip)
+                st.toast("🖼️ Catálogo de capas carregado com sucesso!", icon="✅")
+            except Exception as e:
+                st.error(f"Erro ao descompactar o arquivo de capas: {e}")
 
-# Inicializa o banco de dados de alta performance
-with st.spinner("Carregando o catálogo unificado de livros jurídicos... Aguarde..."):
-    df, mensagem = carregar_catalogo_completo_olejnik()
+# ==============================================================================
+# 2. CARREGAMENTO DOS DADOS JURÍDICOS (PLANILHA EXCEL)
+# ==============================================================================
+# Procurar automaticamente pela planilha gerada pelo seu robô
+caminho_excel = None
+for arquivo in os.listdir('.'):
+    if arquivo.lower().endswith(('.xlsx', '.xls')) and not arquivo.startswith('~$'):
+        caminho_excel = arquivo
+        break
 
-if df is None:
-    st.error(mensagem)
-    st.stop()
+st.title("📚 Buscador Jurídico - Obras Sugeridas")
 
-# Coleta e ordena a lista de autores reais cadastrados no catálogo mestre
-autores_reais = sorted([str(a) for a in df['Autor'].unique() if pd.notna(a) and str(a).lower() != 'nan' and str(a) != 'Consultar Catálogo'])
-
-# =====================================================================
-# TELA DE PESQUISA DO ADVOGADO (BILÍNGUE POR TEMA OU AUTOR)
-# =====================================================================
-st.sidebar.success(f"📊 {len(df)} Obras Operacionais")
-st.sidebar.markdown("### Menu de Busca")
-tipo_busca = st.sidebar.radio("Selecione o método de consulta:", ["Pesquisa por Tema / Conteúdo", "Filtrar por Autor"])
-
-resultados = pd.DataFrame()
-
-if tipo_busca == "Pesquisa por Tema / Conteúdo":
-    pergunta = st.text_input("🔍 Digite palavras-chave do tema ou livro que você procura:", 
-                            placeholder="Ex: Tributação, penal, constitucional, direito comercial...")
-    if pergunta:
-        termo_normalizado = normalizar_texto(pergunta)
-        resultados = df[
-            df['busca_titulo'].str.contains(termo_normalizado, na=False) |
-            df['busca_autor'].str.contains(termo_normalizado, na=False) |
-            df['busca_resena'].str.contains(termo_normalizado, na=False) |
-            df['busca_indice'].str.contains(termo_normalizado, na=False)
-        ].head(8)
+if not caminho_excel:
+    st.error("❌ Erro: Planilha de dados Excel não localizada no repositório do GitHub. Certifique-se de realizar o upload dela!")
 else:
-    autor_selecionado = st.selectbox("📚 Selecione o Autor que deseja consultar:", [""] + autores_reais)
-    if autor_selecionado:
-        resultados = df[df['Autor'] == autor_selecionado].head(15)
+    # Carrega a planilha (ajuste o parâmetro 'header' se o seu cabeçalho estiver em outra linha)
+    df = pd.read_excel(caminho_excel)
 
-# =====================================================================
-# EXIBIÇÃO DE RESULTADOS CONECTADA COM O SEU GOOGLE DRIVE DE FOTOS
-# =====================================================================
-if not resultados.empty:
-    st.subheader("📚 Obras Sugeridas:")
-    st.write("---")
-    
-    # ID público da sua pasta do Google Drive compartilhada
-    id_pasta_drive = "1xoryWQoYyA8opfSSOnX2vkdRTGtTmQoW"
-    
-    for _, row in resultados.iterrows():
-        col_img, col_dados = st.columns([1, 5]) # Reserva o espaço correto proporcional na tela
+    # Criação do Filtro de Autores na tela (semelhante ao seu print original)
+    autores_disponiveis = sorted(df['Autor'].dropna().unique())
+    autor_selecionado = st.selectbox("👤 Selecione o Autor que deseja consultar:", [""] + autores_disponiveis)
+
+    if autor_selecionado:
+        st.markdown(f"## 📚 Obras Sugeridas de **{autor_selecionado}**:")
         
-        isbn_limpo = "".join([c for c in str(row['ISBN-EAN']) if c.isdigit()])
-        titulo_obra = row['Titulo - Sub.titulo']
+        # Filtra os livros do autor selecionado
+        livros_filtrados = df[df['Autor'] == autor_selecionado]
         
-        with col_img:
-            # Vinculação direta das imagens com a pasta do seu Google Drive usando o nome do arquivo [ISBN].jpg
-            # Google Drive API link direto para renderização de mídias públicas
-            link_capa_drive = f"https://googleusercontent.com{id_pasta_drive}"
+        for idx, livro in livros_filtrados.iterrows():
+            st.markdown("---")
             
-            # Caso queira puxar via arquivo individual direto, o Streamlit processa o formato web abaixo:
-            link_foto_individual = f"https://google.com{id_pasta_drive}&sz=w200"
+            # Limpa o ISBN tirando pontos e espaços para bater com o nome da imagem
+            raw_isbn = str(livro.get('ISBN-EAN', '')).strip().split('.')
+            isbn_livro = "".join([c for c in raw_isbn if c.isdigit()])
             
-            # HTML para garantir o contorno elegante e a exibição da imagem
-            st.image(link_foto_individual, width=130, caption=f"ISBN {isbn_limpo}")
-                
-        with col_dados:
-            st.markdown(f"### {titulo_obra}")
+            # Define os caminhos possíveis onde a imagem descompactada pode estar
+            # (Adiciona tratamento caso ela esteja dentro de uma subpasta criada pelo ZIP)
+            caminhos_possiveis = [
+                f"capas/{isbn_livro}.jpg",
+                f"capas/{isbn_livro}.png",
+                f"capas/{isbn_livro}.jpeg",
+                f"capas/capas/{isbn_livro}.jpg", # Trata caso a pasta tenha sido zipada dentro de outra pasta
+                f"capas/capas/{isbn_livro}.png"
+            ]
             
-            autor_exibir = row['Autor'] if str(row['Autor']).lower() != 'nan' else "Consultar Editora"
-            st.markdown(f"**Autor:** {autor_exibir} | **ISBN do Livro:** {isbn_limpo}")
+            caminho_foto_final = None
+            for caminho in caminhos_possiveis:
+                if os.path.exists(caminho):
+                    caminho_foto_final = caminho
+                    break
             
-            # Exibe a resenha técnica longa e sem cortes extraída pelo robô
-            with st.expander("📝 Ver Resumen Técnico / Reseña Completa"):
-                txt_reseña = row['Reseña']
-                if not txt_reseña or str(txt_reseña).lower() == 'nan':
-                    txt_reseña = "Reseña técnica disponible bajo consulta en la Editorial."
-                st.write(txt_reseña)
-                
-            # Exibe o índice original completo mapeado por capítulos pelo robô de forma limpa
-            with st.expander("📖 Ver Sumário / Índice Detalhado por Capítulos"):
-                txt_indice = row['Indice_Completo']
-                if not txt_indice or str(txt_indice).lower() == 'nan' or 'Índice detalhado disponível' in str(txt_indice):
-                    txt_indice = "Índice detallado disponible bajo consulta en la secretaría de la Editorial."
-                    st.write(txt_indice)
+            # Divide a interface em duas colunas: Capa na Esquerda, Textos e Botões na Direita
+            col_capa, col_texto = st.columns([1, 4])
+            
+            with col_capa:
+                if caminho_foto_final:
+                    st.image(caminho_foto_final, width=160)
                 else:
-                    st.text(txt_indice)
+                    # Imagem cinza padrão caso o livro não possua foto correspondente ao ISBN
+                    st.image("https://unsplash.com", 
+                             caption="Capa não disponível")
+                    st.caption(f"ISBN buscado: {isbn_livro}")
+                    
+            with col_texto:
+                st.markdown(f"### {livro.get('Título', 'Título do Livro')}")
+                st.markdown(f"**Autor:** {livro.get('Autor')} | **ISBN do Livro:** {livro.get('ISBN-EAN')}")
                 
-            # Link comercial direcionado para o site oficial
-            link_compra = "https://edicionesolejnik.com.br"
-            st.markdown(f"<a href='{link_compra}' target='_blank'><button style='background-color:#1E3A8A; color:white; border:none; padding:8px 20px; border-radius:4px; cursor:pointer; font-weight: 500;'>🛒 Comprar no Site Oficial</button></a>", unsafe_allow_html=True)
-            
-        st.markdown("<br><hr style='border-top: 1px dashed #bbb;'><br>", unsafe_allow_html=True)
-elif pergunta if 'pergunta' in locals() else False:
-    st.warning("⚠️ Nenhuma obra correspondente foi encontrada para esse termo no catálogo atual. Tente buscar usando termos mais gerais (ex: tribut, penal, constitu).")
+                # Sanfona para exibir a resenha
+                with st.expander("📝 Ver Resumen Técnico / Reseña Completa"):
+                    st.write(livro.get('Reseña', 'Reseña técnica disponible bajo consulta na Editorial.'))
+                    
+                # Sanfona para exibir o sumário
+                with st.expander("📖 Ver Sumário / Índice Detalhado por Capítulos"):
+                    st.write(livro.get('Indice_Completo', 'Índice detalhado disponível sob consulta na secretaria.'))
+                
+                # Botão de Compra
+                link_compra = livro.get('Link_Site', '#') # Ajuste o nome da coluna se for diferente na planilha
+                st.link_button("🛒 Comprar no Site Oficial", link_compra, type="primary")

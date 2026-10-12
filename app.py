@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import os
 from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
@@ -13,53 +14,90 @@ st.markdown("<h3 style='text-align: center; color: #555;'>Buscador Bibliográfic
 st.markdown("---")
 
 # =====================================================================
-# INDICAÇÃO AUTOMÁTICA DE RESULTADOS COM CACHE SEGURO
+# LEITURA DA PLANILHA EXCEL REAL E CARREGAMENTO DE DADOS (COM CACHE)
 # =====================================================================
 @st.cache_resource
-def inicializar_sistema_estatico():
-    exemplo_livros = [
-        {
-            "titulo": "Tratado de Derecho Constitucional", 
-            "autor": "Carlos Olejnik", 
-            "isbn": "9789563920011", 
-            "resumo": "Estudo profundo sobre direitos fundamentais, separação de poderes, controle de constitucionalidade e a dignidade humana no ordenamento contemporâneo. A obra esmiúça de forma integral as garantias processuais do cidadão, trazendo vasta jurisprudência comparada da América Latina e Europa, servindo como guia indispensável para pareceres complexos de controle concentrado.", 
-            "indice": "Capítulo I: Teoria Geral do Estado.\nCapítulo II: Direitos Fundamentais Nacionais.\nCapítulo III: Mecanismos de Controle de Constitucionalidade.", 
-            "preco": "150.00"
-        },
-        {
-            "titulo": "Manual de Derecho Penal y Criminología", 
-            "autor": "Enrique Olejnik", 
-            "isbn": "9789563920022", 
-            "resumo": "Análise técnica abrangente de crimes cibernéticos, tipicidade penal, teoria do delito, processo criminal, teorias da pena e aplicação prática no direito penal econômico. Traz um panorama completo das novas modalidades de fraudes digitais, lavagem de capitais e os critérios dogmáticos de imputação objetiva nas corporações modernas.", 
-            "indice": "Capítulo I: Criminologia Moderna.\nCapítulo II: Elementos Clássicos do Delito.\nCapítulo III: Crimes de Informática e Inovações Tecnológicas.", 
-            "preco": "135.00"
-        }
-    ]
-    
-    documents = []
-    lista_autores = set()
-    
-    for livro in exemplo_livros:
-        lista_autores.add(livro['autor'])
-        texto_busca = f"Livro: {livro['titulo']} | Autor: {livro['autor']} | Resumo: {livro['resumo']} | Índice: {livro['indice']}"
-        metadados = {
-            "isbn": livro['isbn'],
-            "titulo": livro['titulo'],
-            "autor": livro['autor'],
-            "indice": livro['indice'],
-            "resumo": livro['resumo'],
-            "preco": livro['preco']
-        }
-        documents.append(Document(page_content=texto_busca, metadata=metadados))
+def inicializar_sistema_real():
+    # Localiza automaticamente qualquer arquivo Excel presente na pasta do GitHub
+    caminho_excel = None
+    for arquivo in os.listdir('.'):
+        if arquivo.lower().endswith(('.xlsx', '.xls')) and not arquivo.startswith('~$'):
+            caminho_excel = arquivo
+            break
+            
+    if not caminho_excel:
+        return None, [], "❌ Erro: Nenhuma planilha Excel (.xlsx) foi encontrada na pasta do projeto."
         
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    vectorstore = Chroma.from_documents(documents, embeddings)
-    
-    return vectorstore.as_retriever(search_kwargs={"k": 2}), sorted(list(lista_autores)), "✅ Acervo Inteligente da Editora conectado com sucesso!"
+    try:
+        # Varre as primeiras linhas para ignorar logotipos ou linhas em branco e achar o cabeçalho real
+        linha_cabecalho = 0
+        df_teste = pd.read_excel(caminho_excel, nrows=15, header=None)
+        for i, row in df_teste.iterrows():
+            texto_linha = " ".join([str(val).upper() for val in row.values if pd.notna(val)])
+            if any(termo in texto_linha for termo in ['ISBN', 'CODIGO', 'TITULO', 'AUTOR', 'TÍTULO']):
+                linha_cabecalho = i
+                break
+                
+        df = pd.read_excel(caminho_excel, header=linha_cabecalho)
+        
+        # Identificação automática e flexível das colunas da planilha
+        col_isbn = next((c for c in df.columns if any(t in str(c).upper() for t in ['ISBN', 'COD'])), df.columns[0] if len(df.columns) > 0 else '')
+        col_tit = next((c for c in df.columns if any(t in str(c).upper() for t in ['TIT', 'NOM'])), df.columns[1] if len(df.columns) > 1 else '')
+        col_aut = next((c for c in df.columns if 'AUT' in str(c).upper()), df.columns[2] if len(df.columns) > 2 else 'Desconhecido')
+        col_pre = next((c for c in df.columns if any(t in str(c).upper() for t in ['PRE', 'VAL'])), 'Sob consulta')
+        col_res = next((c for c in df.columns if any(t in str(c).upper() for t in ['RES', 'MINI', 'RESE'])), None)
+        col_ind = next((c for c in df.columns if any(t in str(c).upper() for t in ['IND', 'SUM', 'SUMA'])), None)
+
+        documents = []
+        lista_autores = set()
+        
+        for _, row in df.iterrows():
+            raw_isbn = str(row.get(col_isbn, '')).strip().replace('.0', '')
+            isbn_livro = "".join([c for c in raw_isbn if c.isdigit()])
+            if not isbn_livro or len(isbn_livro) < 5: 
+                continue
+                
+            titulo_livro = str(row.get(col_tit, 'Sem Título')).strip()
+            autor_livro = str(row.get(col_aut, 'Desconhecido')).strip()
+            preco_livro = str(row.get(col_pre, 'Sob consulta')).strip()
+            
+            # Puxa o resumo e índice direto das colunas da planilha se existirem
+            txt_res = str(row.get(col_res, 'Resumo detalhado disponível sob consulta.')) if col_res else "Resumo detalhado disponível sob consulta."
+            txt_ind = str(row.get(col_ind, 'Índice completo disponível sob consulta.')) if col_ind else "Índice completo disponível sob consulta."
+            
+            if autor_livro and autor_livro != 'nan' and autor_livro != 'Desconhecido':
+                lista_autores.add(autor_livro)
+                
+            texto_busca = f"Livro: {titulo_livro} | Autor: {autor_livro} | Resumo: {txt_res} | Índice: {txt_ind}"
+            
+            metadados = {
+                "isbn": isbn_livro, 
+                "titulo": titulo_livro, 
+                "autor": autor_livro,
+                "indice": txt_ind, 
+                "resumo": txt_res, 
+                "preco": preco_livro
+            }
+            documents.append(Document(page_content=texto_busca, metadata=metadados))
+            
+        if len(documents) == 0:
+            return None, [], "❌ Não foi possível extrair nenhum livro válido da planilha Excel."
+            
+        embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+        vectorstore = Chroma.from_documents(documents, embeddings)
+        
+        return vectorstore.as_retriever(search_kwargs={"k": 2}), sorted(list(lista_autores)), f"✅ Conexão bem-sucedida! {len(documents)} obras jurídicas carregadas."
+        
+    except Exception as e:
+        return None, [], f"❌ Erro ao ler a planilha Excel: {e}"
 
 # Inicializa o processador inteligente de forma estável
-with st.spinner("Conectando com segurança ao catálogo da Editora (Aguarde)..."):
-    retriever, autores_disponiveis, mensagem = inicializar_sistema_estatico()
+with st.spinner("Lendo sua planilha real e inicializando o catálogo da Editora (Aguarde)..."):
+    retriever, autores_disponiveis, mensagem = inicializar_sistema_real()
+
+if retriever is None:
+    st.error(mensagem)
+    st.stop()
 
 # =====================================================================
 # TELA DE PESQUISA DO ADVOGADO COM RECURSO DE FILTRO POR AUTOR
@@ -92,10 +130,10 @@ if resultados:
     
     for idx, livre in enumerate(resultados):
         m = livre.metadata
-        col_img, col_dados = st.columns([1, 4]) # Reserva espaço correto para a foto
+        col_img, col_dados = st.columns([1, 4]) # Reserva espaço proporcional para a foto
         
         with col_img:
-            # Vinculação direta com o seu site usando o ISBN
+            # Vinculação com o link das capas usando o ISBN padrão
             link_capa_dinamico = f"https://edicionesolejnik.com.br{m['isbn']}.jpg"
             st.image(link_capa_dinamico, width=150)
                 

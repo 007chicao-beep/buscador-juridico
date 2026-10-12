@@ -14,10 +14,9 @@ st.markdown("<h3 style='text-align: center; color: #555;'>Buscador Bibliográfic
 st.markdown("---")
 
 # =====================================================================
-# LEITURA DA PLANILHA EXCEL REAL COM MAPEAMENTO INTEGRAL DE COLUNAS
+# LEITURA DIRETA E REAL DA PLANILHA (SEM CACHE TRANCADO)
 # =====================================================================
-@st.cache_resource
-def inicializar_sistema_real():
+def inicializar_sistema_real_direto():
     caminho_excel = None
     for arquivo in os.listdir('.'):
         if arquivo.lower().endswith(('.xlsx', '.xls')) and not arquivo.startswith('~$'):
@@ -28,10 +27,10 @@ def inicializar_sistema_real():
         return None, [], "❌ Erro: Nenhuma planilha Excel (.xlsx) foi encontrada na pasta do projeto."
         
     try:
-        # Abre o Excel pulando possíveis linhas vazias do topo para ler os cabeçalhos reais
+        # Abre o Excel pulando a linha do logotipo para ler os cabeçalhos reais oficiais
         df = pd.read_excel(caminho_excel, header=1)
         
-        # DEFINIÇÃO FIXA COM OS NOMES EXATOS DAS COLUNAS DA SUA PLANILHA OLEJNIK
+        # MAPEAMENTO FIXO COM OS NOMES EXATOS DA SUA PLANILHA ENVIADA
         col_isbn = 'ISBN-EAN'
         col_tit = 'Titulo - Sub.titulo'
         col_aut = 'Autor'
@@ -52,11 +51,11 @@ def inicializar_sistema_real():
             titulo_livro = str(row.get(col_tit, 'Sem Título')).strip()
             autor_livro = str(row.get(col_aut, 'Desconhecido')).strip()
             
-            # Trava de segurança contra linhas deslocadas ou corrompidas
+            # Trava de segurança contra linhas deslocadas ou em branco
             if titulo_livro == isbn_livro or titulo_livro.lower() in ['nan', '']:
                 continue
 
-            # Captura e formatação do Preço Real na moeda brasileira (REALES)
+            # Captura o valor real contido na coluna REALES
             preco_raw = str(row.get(col_pre, '')).strip()
             if not preco_raw or preco_raw.lower() in ['nan', '0', '0.0', '']:
                 preco_livro = "Sob consulta"
@@ -64,7 +63,7 @@ def inicializar_sistema_real():
                 preco_limpo = preco_raw.upper().replace('R$', '').replace('$', '').strip()
                 preco_livro = f"R$ {preco_limpo}"
             
-            # Puxa o resumo longo e analítico diretamente da sua coluna "Reseña"
+            # Extrai o resumo técnico integral contido na coluna Reseña
             txt_res = str(row.get(col_res, '')).strip()
             if not txt_res or txt_res.lower() in ['nan', '']:
                 txt_res = "Reseña técnica disponible bajo consulta en la secretaría de la Editorial."
@@ -72,7 +71,6 @@ def inicializar_sistema_real():
             if autor_livro and autor_livro.lower() != 'nan' and autor_livro != 'Desconhecido':
                 lista_autores.add(autor_livro)
                 
-            # Monta a base de dados inteligente para a busca contextual
             texto_busca = f"Livro: {titulo_livro} | Autor: {autor_livro} | Resumo: {txt_res}"
             
             metadados = {
@@ -90,14 +88,13 @@ def inicializar_sistema_real():
         embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
         vectorstore = Chroma.from_documents(documents, embeddings)
         
-        return vectorstore.as_retriever(search_kwargs={"k": 2}), sorted(list(lista_autores)), f"✅ Conexão estável! {len(documents)} obras jurídicas da Ediciones Olejnik operacionais."
+        return vectorstore.as_retriever(search_kwargs={"k": 2}), sorted(list(lista_autores)), f"✅ Conexão estável! {len(documents)} obras jurídicas carregadas."
         
     except Exception as e:
         return None, [], f"❌ Erro ao ler a estrutura do arquivo Excel: {e}"
 
-# Inicializa o processador inteligente de IA
-with st.spinner("Sincronizando de forma inteligente o catálogo, preços e resenhas (Aguarde)..."):
-    retriever, autores_disponiveis, mensagem = inicializar_sistema_real()
+# Executa a inicialização limpa a cada carregamento para garantir a sincronia
+retriever, autores_disponiveis, mensagem = inicializar_sistema_real_direto()
 
 if retriever is None:
     st.error(mensagem)
@@ -126,7 +123,7 @@ else:
             resultados = retriever.invoke(f"Autor: {autor_selecionado}")
 
 # =====================================================================
-# EXIBIÇÃO INTEGRAL E CASADA DAS INFORMAÇÕES
+# EXIBIÇÃO INTEGRAL DAS INFORMAÇÕES
 # =====================================================================
 if resultados:
     st.subheader("📚 Obras Sugeridas:")
@@ -134,10 +131,9 @@ if resultados:
     
     for idx, livre in enumerate(resultados):
         m = livre.metadata
-        col_img, col_dados = st.columns([1, 4]) # Proporção perfeita: capa compacta na esquerda, dados na direita
+        col_img, col_dados = st.columns([1, 4]) # Define proporção exata da tela (Capa esquerda, texto direita)
         
         with col_img:
-            # Puxa a capa oficial usando a URL dinâmica baseada no ISBN real da planilha
             link_capa_dinamico = f"https://edicionesolejnik.com.br{m['isbn']}.jpg"
             st.image(link_capa_dinamico, width=140)
                 
@@ -145,7 +141,6 @@ if resultados:
             st.markdown(f"### {m['titulo']}")
             st.markdown(f"**Autor:** {m['autor']} | **ISBN do Livro:** {m['isbn']} | **Preço:** {m['preco']}")
             
-            # Exibe a resenha longa técnica completa contida na coluna Reseña
             with st.expander("📝 Ver Resumen Técnico / Reseña Completa"):
                 st.write(m['resumo'])
                 

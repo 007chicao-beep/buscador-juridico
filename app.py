@@ -48,10 +48,8 @@ col_indice = next((c for c in df.columns if any(t in str(c).upper() for t in ['I
 col_link = next((c for c in df.columns if any(t in str(c).upper() for t in ['LINK', 'SITE', 'WEB'])), None)
 col_materia = next((c for c in df.columns if any(t in str(c).upper() for t in ['MATERIA', 'TEMA', 'CATEGORIA'])), None)
 
-# Validação básica das colunas obrigatórias
 if not col_autor or not col_titulo:
     st.error("❌ Erro: Não foi possível identificar as colunas de 'Autor' ou 'Título' na sua planilha.")
-    st.info("👉 Garanta que os nomes das colunas estejam bem definidos na planilha Excel.")
     st.stop()
 
 # ==============================================================================
@@ -70,41 +68,36 @@ with aba_autor:
 with aba_palavra:
     termo_busca = st.text_input("Digite um Tema, Título ou Palavra-Chave para buscar no catálogo:")
     if termo_busca:
-        # Filtra buscando correspondências no Título ou na Matéria (se existir)
         condicao_busca = df[col_titulo].str.contains(termo_busca, case=False, na=False)
         if col_materia:
             condicao_busca = condicao_busca | df[col_materia].astype(str).str.contains(termo_busca, case=False, na=False)
         livros_filtrados = df[condicao_busca]
 
 # ==============================================================================
-# 3. EXIBIÇÃO DAS OBRAS E ACABAMENTO VISUAL PERSONALIZADO (CARDS AZUIS)
+# 3. EXIBIÇÃO DAS OBRAS COM PRESERVAÇÃO INTEGRAL DE ESPAÇOS E TABULAÇÕES
 # ==============================================================================
 if not livros_filtrados.empty:
     st.markdown(f"### 📋 Obras Sugeridas Localizadas ({len(livros_filtrados)}):")
     
-    for idx, livro in livros_filtrados.iterrows():
+    for idx, livre in livros_filtrados.iterrows():
         st.markdown("---")
         
-        # Coleta segura das informações básicas das colunas mapeadas
-        titulo_livro = str(livro.get(col_titulo, 'Título Indisponível'))
-        autor_livro = str(livro.get(col_autor, 'Autor Desconhecido'))
-        isbn_exibicao = str(livro.get(col_isbn, 'N/A')) if col_isbn else 'N/A'
+        titulo_livro = str(livre.get(col_titulo, 'Título Indisponível'))
+        autor_livro = str(livre.get(col_autor, 'Autor Desconhecido'))
+        isbn_exibicao = str(livre.get(col_isbn, 'N/A')) if col_isbn else 'N/A'
         
-        # Puxa o resumo e índice de forma flexível
-        texto_resenha = str(livro.get(col_resena, '')) if col_resena else ''
-        texto_indice = str(livro.get(col_indice, '')) if col_indice else ''
+        texto_resenha = str(livre.get(col_resena, '')) if col_resena else ''
+        texto_indice_original = str(livre.get(col_indice, '')) if col_indice else ''
 
         if not texto_resenha or texto_resenha.lower() == 'nan' or texto_resenha.strip() == '':
             texto_resenha = "Reseña técnica disponible bajo consulta en la Editorial."
             
-        if not texto_indice or texto_indice.lower() == 'nan' or texto_indice.strip() == '':
-            texto_indice = "Índice detalhado disponível sob consulta na secretaria da Editorial."
+        if not texto_indice_original or texto_indice_original.lower() == 'nan' or texto_indice_original.strip() == '':
+            texto_indice_original = "Índice detalhado disponível sob consulta na secretaria da Editorial."
 
-        # Layout com duas colunas (Capa Azul na Esquerda, Textos na Direita)
-        col_capa, col_texto = st.columns([1, 4])
+        col_capa, col_texto = st.columns()
         
         with col_capa:
-            # CARD VISUAL AZUL ESCURO PERSONALIZADO COM O NOME E ISBN DO LIVRO
             card_capa_html = f"""
             <div style="
                 background-color: #1E3A8A; 
@@ -138,9 +131,10 @@ if not livros_filtrados.empty:
                 st.write(texto_resenha)
                 
             with st.expander("📖 Ver Sumário / Índice Detalhado por Capítulos"):
-                st.write(texto_indice)
+                # CORREÇÃO CRUCIAL: st.text() preserva todas as tabulações, números, recuos e espaços originais do texto sem aglomerar!
+                st.text(texto_indice_original)
             
-            link_loja = livro.get(col_link, '#') if col_link else '#'
+            link_loja = livre.get(col_link, '#') if col_link else '#'
             st.link_button("🛒 Comprar no Site Oficial", link_loja, type="primary")
 
 elif autor_selecionado or termo_busca:

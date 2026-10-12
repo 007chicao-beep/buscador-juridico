@@ -28,45 +28,42 @@ def inicializar_sistema_real():
         return None, [], "❌ Erro: Nenhuma planilha Excel (.xlsx) foi encontrada na pasta do projeto."
         
     try:
-        # Abre o Excel na linha 2 (header=1), que é onde estão os títulos oficiais capturados no Colab
+        # Abre o Excel na linha 2 (header=1)
         df = pd.read_excel(caminho_excel, header=1)
         
-        # FIXANDO AS COLUNAS REAIS DA EDICIONES OLEJNIK
-        col_isbn = 'ISBN-EAN'
-        col_tit = 'Título - sub.título'
-        col_aut = 'Autor'
-        
-        # Busca flexível para Preço e Índice nas colunas restantes
-        col_pre = next((c for c in df.columns if any(t in str(c).upper() for t in ['PRE', 'VAL', 'R$', 'PRIC', 'PRECIO'])), None)
-        col_ind = next((c for c in df.columns if any(t in str(c).upper() for t in ['IND', 'SUM', 'SUMA', 'PAUTA', 'INDICE', 'ÍNDICE'])), None)
+        # Garante a busca pelas colunas corretas baseadas no terminal corporativo
+        col_isbn = next((c for c in df.columns if 'ISBN' in str(c).upper()), df.columns[0])
+        col_tit = next((c for c in df.columns if 'TÍT' in str(c).upper() or 'TIT' in str(c).upper()), df.columns[1])
+        col_aut = next((c for c in df.columns if 'AUT' in str(c).upper()), df.columns[2])
+        col_pre = next((c for c in df.columns if any(t in str(c).upper() for t in ['PRE', 'VAL', 'R$'])), None)
+        col_ind = next((c for c in df.columns if any(t in str(c).upper() for t in ['IND', 'SUM', 'SUMA', 'PAUTA'])), None)
 
         documents = []
         lista_autores = set()
         
         for _, row in df.iterrows():
-            # Captura e limpa o ISBN-EAN
-            raw_isbn = str(row.get(col_isbn, '')).strip().split('.')
+            # Limpa e formata o ISBN
+            raw_isbn = str(row.get(col_isbn, '')).strip().split('.')[0]
             isbn_livro = "".join([c for c in raw_isbn if c.isdigit()])
             if not isbn_livro or len(isbn_livro) < 5: 
                 continue
                 
-            # Captura o Título e o Autor corretos por extenso
-            titulo_livro = str(row.get(col_tit, 'Sem Título')).strip()
+            titulo_livro = str(row.get(col_tit, '')).strip()
             autor_livro = str(row.get(col_aut, 'Desconhecido')).strip()
             
-            # Se por erro de linha o título vier como número, pula para evitar falha visual
-            if titulo_livro.replace('.','',1).isdigit():
+            # Trava de segurança: Se o título veio duplicando o ISBN, tenta reverter pelo nome por extenso
+            if titulo_livro == isbn_livro or titulo_livro.lower() in ['nan', '']:
                 continue
 
-            # Captura o Preço real da planilha
-            preco_raw = str(row.get(col_pre, '')) .strip() if col_pre else ""
+            # Formatação do Preço
+            preco_raw = str(row.get(col_pre, '')).strip() if col_pre else ""
             if not preco_raw or preco_raw.lower() in ['nan', '0', '0.0', '']:
                 preco_livro = "Sob consulta"
             else:
                 preco_limpo = preco_raw.upper().replace('R$', '').replace('$', '').strip()
                 preco_livro = f"R$ {preco_limpo}"
             
-            # Puxa o resumo direto da coluna R (posição 18 da planilha = índice 17)
+            # Captura o resumo real contido na coluna R (Posição 18)
             txt_res = ""
             if len(row) >= 18:
                 txt_res = str(row.iloc[17]).strip()
@@ -74,8 +71,8 @@ def inicializar_sistema_real():
             if not txt_res or txt_res.lower() in ['nan', '']:
                 txt_res = "Resumo detalhado disponível sob consulta na secretaria da Editora."
             
-            # Puxa o Índice/Sumário da coluna correspondente
-            txt_ind = str(row.get(col_ind, '')) if col_ind else ""
+            # Captura o índice/sumário
+            txt_ind = str(row.get(col_ind, '')).strip() if col_ind else ""
             if not txt_ind or txt_ind.lower() in ['nan', '']:
                 txt_ind = "Índice completo disponível sob consulta na secretaria da Editora."
             
@@ -95,7 +92,7 @@ def inicializar_sistema_real():
             documents.append(Document(page_content=texto_busca, metadata=metadados))
             
         if len(documents) == 0:
-            return None, [], "❌ Erro ao cruzar as colunas. Verifique os cabeçalhos da planilha."
+            return None, [], "❌ Erro ao processar as colunas da planilha. Verifique o arquivo."
             
         embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
         vectorstore = Chroma.from_documents(documents, embeddings)
@@ -103,10 +100,10 @@ def inicializar_sistema_real():
         return vectorstore.as_retriever(search_kwargs={"k": 2}), sorted(list(lista_autores)), f"✅ Conexão bem-sucedida! {len(documents)} obras jurídicas carregadas."
         
     except Exception as e:
-        return None, [], f"❌ Erro ao processar a estrutura do Excel: {e}"
+        return None, [], f"❌ Erro ao ler a estrutura do Excel: {e}"
 
 # Inicializa o processador inteligente
-with st.spinner("Alinhando Títulos, ISBNs e Índices da planilha real (Aguarde)..."):
+with st.spinner("Alinhando o acervo bibliográfico da Editora (Aguarde)..."):
     retriever, autores_disponiveis, mensagem = inicializar_sistema_real()
 
 if retriever is None:
@@ -136,7 +133,7 @@ else:
             resultados = retriever.invoke(f"Autor: {autor_selecionado}")
 
 # =====================================================================
-# EXIBIÇÃO INTEGRAL E CASADA DAS INFORMAÇÕES
+# EXIBIÇÃO CASADA DE INFORMAÇÕES (TÍTULO, ISBN, RESUMO E ÍNDICE)
 # =====================================================================
 if resultados:
     st.subheader("📚 Obras Sugeridas:")
@@ -144,25 +141,25 @@ if resultados:
     
     for idx, livre in enumerate(resultados):
         m = livre.metadata
-        col_img, col_dados = st.columns([1, 4]) # Reserva espaço correto na proporção lateral
+        col_img, col_dados = st.columns([1, 4]) # Proporção perfeita para a capa e textos
         
         with col_img:
-            # Tenta carregar a imagem da capa do site oficial da Ediciones Olejnik usando o ISBN
+            # Conecta o link da imagem usando o ISBN direto do site oficial
             link_capa_dinamico = f"https://edicionesolejnik.com.br{m['isbn']}.jpg"
             st.image(link_capa_dinamico, width=140)
                 
         with col_dados:
-            # EXIBE O NOME DA OBRA (TÍTULO) EM DESTAQUE E O ISBN LOGO ABAIXO EM CONJUNTO
+            # EXIBE O TÍTULO REAL DA OBRA EM DESTAQUE E O ISBN EM CONJUNTO
             st.markdown(f"### {m['titulo']}")
             st.markdown(f"**Autor:** {m['autor']} | **ISBN do Livro:** {m['isbn']} | **Preço:** {m['preco']}")
             
             with st.expander("📖 Ver Sumário / Índice Completo"):
-                st.write(m['indice']) # Exibe o índice cadastrado na planilha
+                st.write(m['indice'])
                 
             with st.expander("📝 Ver Resumo Técnico / Resenha"):
-                st.write(m['resumo']) # Exibe o resumo real e longo contido na coluna R
+                st.write(m['resumo'])
                 
             link_compra = "https://edicionesolejnik.com.br"
             st.markdown(f"<a href='{link_compra}' target='_blank'><button style='background-color:#1E3A8A; color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer;'>🛒 Comprar no Site Oficial</button></a>", unsafe_allow_html=True)
             
-        st.markdown("<br><hr style='border-top: 1px dashed #bbb;'><br>", unsafe_allow_html=True)", unsafe_allow_html=True)      
+        st.markdown("<br><hr style='border-top: 1px dashed #bbb;'><br>", unsafe_allow_html=True)

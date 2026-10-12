@@ -14,7 +14,7 @@ st.markdown("<h3 style='text-align: center; color: #555;'>Buscador Bibliográfic
 st.markdown("---")
 
 # =====================================================================
-# LEITURA DA PLANILHA EXCEL REAL COM TRATAMENTO DE COLUNAS JURÍDICAS
+# LEITURA DA PLANILHA EXCEL REAL COM BUSCA AUTOMÁTICA DE CABEÇALHO
 # =====================================================================
 @st.cache_resource
 def inicializar_sistema_real():
@@ -28,37 +28,45 @@ def inicializar_sistema_real():
         return None, [], "❌ Erro: Nenhuma planilha Excel (.xlsx) foi encontrada na pasta do projeto."
         
     try:
-        # Abre o Excel pulando possíveis linhas vazias do topo para ler os cabeçalhos reais
-        df = pd.read_excel(caminho_excel, header=1)
+        # Analisa onde está a linha de cabeçalho real buscando termos-chave
+        linha_cabecalho = 0
+        df_teste = pd.read_excel(caminho_excel, nrows=15, header=None)
+        for i, row in df_teste.iterrows():
+            texto_linha = " ".join([str(val).upper() for val in row.values if pd.notna(val)])
+            if any(termo in texto_linha for termo in ['ISBN', 'CODIGO', 'TITULO', 'AUTOR', 'TÍTULO']):
+                linha_cabecalho = i
+                break
+                
+        df = pd.read_excel(caminho_excel, header=linha_cabecalho)
         
-        # Mapeamento manual com base nos dados reais validados na sua planilha
-        col_isbn = 'ISBN-EAN' if 'ISBN-EAN' in df.columns else next((c for c in df.columns if 'ISBN' in str(c).upper()), df.columns[0])
-        col_tit = 'Título - sub.título' if 'Título - sub.título' in df.columns else next((c for c in df.columns if 'TIT' in str(c).upper() or 'TÍT' in str(c).upper()), df.columns[1])
-        col_aut = 'Autor' if 'Autor' in df.columns else next((c for c in df.columns if 'AUT' in str(c).upper()), df.columns[2])
+        # Mapeamento inteligente que aceita variações em Português e Espanhol
+        col_isbn = next((c for c in df.columns if any(t in str(c).upper() for t in ['ISBN', 'EAN', 'COD'])), df.columns[0])
+        col_tit = next((c for c in df.columns if any(t in str(c).upper() for t in ['TIT', 'NOM', 'OBRA']) and 'ISBN' not in str(c).upper()), df.columns[1])
+        col_aut = next((c for c in df.columns if any(t in str(c).upper() for t in ['AUT', 'ESCRI'])), df.columns[2])
         
-        # Procura colunas de preço e índice/sumário pelos termos mais comuns
-        col_pre = next((c for c in df.columns if any(t in str(c).upper() for t in ['PRE', 'VAL', 'R$', 'PRECIO', 'PRICE'])), None)
-        col_ind = next((c for c in df.columns if any(t in str(c).upper() for t in ['IND', 'SUM', 'SUMA', 'PAUTA', 'INDICE', 'ÍNDICE'])), None)
+        # Procura de forma avançada as colunas de Preço, Resumo e Índice
+        col_pre = next((c for c in df.columns if any(t in str(c).upper() for t in ['PRE', 'VAL', 'R$', 'PRIC', 'COST'])), None)
+        col_res = next((c for c in df.columns if any(t in str(c).upper() for t in ['RES', 'SINO', 'DESCR', 'RESE', 'COLUNA R', 'R'])), None)
+        col_ind = next((c for c in df.columns if any(t in str(c).upper() for t in ['IND', 'SUM', 'SUMA', 'PAUTA', 'ÍNDI'])), None)
 
         documents = []
         lista_autores = set()
         
-        for _, row in df.iterrows():
-            # Extrai e limpa o código ISBN
+        for idx_row, row in df.iterrows():
+            # Extrai e limpa o ISBN
             raw_isbn = str(row.get(col_isbn, '')).strip().split('.')
             isbn_livro = "".join([c for c in raw_isbn if c.isdigit()])
             if not isbn_livro or len(isbn_livro) < 5: 
                 continue
                 
-            # Captura o Título por extenso e o Nome do Autor da Obra
-            titulo_livro = str(row.get(col_tit, '')).strip()
+            titulo_livro = str(row.get(col_tit, 'Sem Título')).strip()
             autor_livro = str(row.get(col_aut, 'Desconhecido')).strip()
             
-            # Trava de segurança: Se o título veio duplicando o ISBN por erro de linha, corrige
+            # Se por algum motivo o título veio duplicando o ISBN, ignora a linha corrompida
             if titulo_livro == isbn_livro or titulo_livro.lower() in ['nan', '']:
                 continue
 
-            # Captura e formatação de valores em Reais
+            # Captura e formatação do Preço Real em Reais
             preco_raw = str(row.get(col_pre, '')).strip() if col_pre else ""
             if not preco_raw or preco_raw.lower() in ['nan', '0', '0.0', '']:
                 preco_livro = "Sob consulta"
@@ -66,15 +74,17 @@ def inicializar_sistema_real():
                 preco_limpo = preco_raw.upper().replace('R$', '').replace('$', '').strip()
                 preco_livro = f"R$ {preco_limpo}"
             
-            # Puxa o resumo longo técnico diretamente da coluna R (18ª posição da planilha)
+            # Puxa o resumo (Tenta por nome de coluna ou pega pela posição da 18ª coluna/Letra R)
             txt_res = ""
-            if len(row) >= 18:
+            if col_res:
+                txt_res = str(row.get(col_res, '')).strip()
+            elif len(row) >= 18:
                 txt_res = str(row.iloc[17]).strip()
-            
+                
             if not txt_res or txt_res.lower() in ['nan', '']:
-                txt_res = "Resumo detalhado disponível sob consulta na secretaria da Editora."
+                txt_res = "Resumo analítico disponível sob consulta na secretaria da Editora."
             
-            # Puxa o Índice/Sumário do livro da coluna correspondente (geralmente coluna S / 19ª posição)
+            # Puxa o índice (Tenta por nome de coluna ou pega pela posição da 19ª coluna/Letra S)
             txt_ind = ""
             if col_ind:
                 txt_ind = str(row.get(col_ind, '')).strip()
@@ -100,7 +110,7 @@ def inicializar_sistema_real():
             documents.append(Document(page_content=texto_busca, metadata=metadados))
             
         if len(documents) == 0:
-            return None, [], "❌ Erro ao associar os dados. Verifique a planilha Excel."
+            return None, [], "❌ Erro ao cruzar os dados estruturados da planilha."
             
         embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
         vectorstore = Chroma.from_documents(documents, embeddings)
@@ -108,10 +118,10 @@ def inicializar_sistema_real():
         return vectorstore.as_retriever(search_kwargs={"k": 2}), sorted(list(lista_autores)), f"✅ Conexão estável! {len(documents)} obras jurídicas Olejnik operacionais."
         
     except Exception as e:
-        return None, [], f"❌ Erro ao ler a estrutura do arquivo: {e}"
+        return None, [], f"❌ Erro ao ler a estrutura do arquivo Excel: {e}"
 
 # Inicializa o processador inteligente
-with st.spinner("Alinhando Títulos, preços e resumos do acervo Olejnik (Aguarde)..."):
+with st.spinner("Sincronizando de forma inteligente o catálogo, preços e resumos (Aguarde)..."):
     retriever, autores_disponiveis, mensagem = inicializar_sistema_real()
 
 if retriever is None:
@@ -141,7 +151,7 @@ else:
             resultados = retriever.invoke(f"Autor: {autor_selecionado}")
 
 # =====================================================================
-# EXIBIÇÃO INTEGRAL E INTEGRADA DAS INFORMAÇÕES
+# EXIBIÇÃO INTEGRAL E CASADA DAS INFORMAÇÕES
 # =====================================================================
 if resultados:
     st.subheader("📚 Obras Sugeridas:")
@@ -149,15 +159,14 @@ if resultados:
     
     for idx, livre in enumerate(resultados):
         m = livre.metadata
-        col_img, col_dados = st.columns([1, 4]) # Divide a tela perfeitamente entre imagem e texto
+        col_img, col_dados = st.columns() # Divide a tela perfeitamente de forma responsiva
         
         with col_img:
-            # Puxa a capa oficial usando a URL dinâmica baseada no ISBN real da planilha
+            # Vinculação direta com o servidor de imagens oficial da Ediciones Olejnik usando o ISBN
             link_capa_dinamico = f"https://edicionesolejnik.com.br{m['isbn']}.jpg"
             st.image(link_capa_dinamico, width=140)
                 
         with col_dados:
-            # EXIBE O TÍTULO REAL DA OBRA POR EXTENSO E O ISBN EM CONJUNTO NO TOPO
             st.markdown(f"### {m['titulo']}")
             st.markdown(f"**Autor:** {m['autor']} | **ISBN do Livro:** {m['isbn']} | **Preço:** {m['preco']}")
             

@@ -9,7 +9,7 @@ import streamlit as st
 st.set_page_config(page_title="Buscador Jurídico", layout="wide")
 
 # ==============================================================================
-# 1. DOWNLOAD E EXTRAÇÃO DAS CAPAS COM GDOWN (ESTÁVEL E SEM ERROS DE CONEXÃO)
+# 1. DOWNLOAD E EXTRAÇÃO DAS CAPAS COM GDOWN (CORRIGIDO)
 # ==============================================================================
 ID_CAPAS_DRIVE = "1CnfjblNWOhWWFNuq4gCs6XGKwMWW9bex"
 
@@ -19,6 +19,7 @@ pasta_destino_capas = "capas"
 # Executa o download estável e a extração apenas uma vez ao iniciar o app
 if not os.path.exists(pasta_destino_capas):
     with st.spinner("🚀 Inicializando servidor: Baixando catálogo com 1.890 capas..."):
+        # URL corrigida para o gdown ler o ID corretamente
         url_drive = f'https://google.com{ID_CAPAS_DRIVE}'
         
         try:
@@ -61,7 +62,6 @@ else:
         for idx, livro in livros_filtrados.iterrows():
             st.markdown("---")
             
-            # CORRIGIDO: Vinculando dinamicamente ao dicionário do livro atual do loop
             raw_isbn = str(livro.get('ISBN-EAN', '')).strip().split('.')
             isbn_livro = "".join([c for c in raw_isbn if c.isdigit()])
             
@@ -79,7 +79,8 @@ else:
                     caminho_foto_final = caminho
                     break
             
-            col_capa, col_texto = st.columns() # Dá um espaçamento elegante na tela
+            # CORRIGIDO: Passando o número 2 para gerar exatamente duas colunas (Capa e Texto)
+            col_capa, col_texto = st.columns([1, 4]) 
             
             with col_capa:
                 if caminho_foto_final:

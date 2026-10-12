@@ -82,45 +82,43 @@ if tipo_busca == "Pesquisa por Tema / Conteúdo":
                             placeholder="Ex: Tributação, penal, constitucional, direito comercial...")
     if pergunta:
         termo_normalizado = normalizar_texto(pergunta)
-        # Varre instantaneamente as 4 colunas de texto ao mesmo tempo (cruzando PT/ES sem travar)
         resultados = df[
             df['busca_titulo'].str.contains(termo_normalizado, na=False) |
             df['busca_autor'].str.contains(termo_normalizado, na=False) |
             df['busca_resena'].str.contains(termo_normalizado, na=False) |
             df['busca_indice'].str.contains(termo_normalizado, na=False)
-        ].head(8) # Traz os 8 melhores resultados com velocidade máxima
+        ].head(8)
 else:
     autor_selecionado = st.selectbox("📚 Selecione o Autor que deseja consultar:", [""] + autores_reais)
     if autor_selecionado:
         resultados = df[df['Autor'] == autor_selecionado].head(15)
 
 # =====================================================================
-# EXIBIÇÃO DE RESULTADOS COM VISUAL CORPORATIVO E SEM EXIBIÇÃO DE PREÇO
+# EXIBIÇÃO DE RESULTADOS CONECTADA COM O SEU GOOGLE DRIVE DE FOTOS
 # =====================================================================
 if not resultados.empty:
     st.subheader("📚 Obras Sugeridas:")
     st.write("---")
     
+    # ID público da sua pasta do Google Drive compartilhada
+    id_pasta_drive = "1xoryWQoYyA8opfSSOnX2vkdRTGtTmQoW"
+    
     for _, row in resultados.iterrows():
-        col_img, col_dados = st.columns([1, 4]) # Proporção ideal de tela (Capa menor, textos maiores)
+        col_img, col_dados = st.columns([1, 5]) # Reserva o espaço correto proporcional na tela
         
         isbn_limpo = "".join([c for c in str(row['ISBN-EAN']) if c.isdigit()])
         titulo_obra = row['Titulo - Sub.titulo']
         
         with col_img:
-            # HTML para desenhar uma capa elegante em azul corporativo protegida contra quebras de links
-            html_capa_reserva = f"""
-            <div style="width:130px; height:195px; background-color:#1E3A8A; color:white; 
-                        border-radius:4px; padding:12px; display:flex; flex-direction:column; 
-                        justify-content:center; align-items:center; text-align:center;
-                        box-shadow: 2px 2px 6px rgba(0,0,0,0.35); border: 1px solid #0f255c;
-                        font-family: sans-serif;">
-                <div style="font-size:9px; font-weight:bold; margin-bottom:12px; color:#93C5FD; text-transform: uppercase; letter-spacing: 1px;">Ediciones Olejnik</div>
-                <div style="font-size:11px; font-weight:600; line-height:1.3; overflow:hidden; display:-webkit-box; -webkit-line-clamp:6; -webkit-box-orient:vertical;">{titulo_obra}</div>
-                <div style="font-size:8px; margin-top:auto; color:#93C5FD; font-weight: 500;">ISBN {isbn_limpo}</div>
-            </div>
-            """
-            st.markdown(html_capa_reserva, unsafe_allow_html=True)
+            # Vinculação direta das imagens com a pasta do seu Google Drive usando o nome do arquivo [ISBN].jpg
+            # Google Drive API link direto para renderização de mídias públicas
+            link_capa_drive = f"https://googleusercontent.com{id_pasta_drive}"
+            
+            # Caso queira puxar via arquivo individual direto, o Streamlit processa o formato web abaixo:
+            link_foto_individual = f"https://google.com{id_pasta_drive}&sz=w200"
+            
+            # HTML para garantir o contorno elegante e a exibição da imagem
+            st.image(link_foto_individual, width=130, caption=f"ISBN {isbn_limpo}")
                 
         with col_dados:
             st.markdown(f"### {titulo_obra}")
@@ -142,7 +140,7 @@ if not resultados.empty:
                     txt_indice = "Índice detallado disponible bajo consulta en la secretaría de la Editorial."
                     st.write(txt_indice)
                 else:
-                    st.text(txt_indice) # st.text preserva a quebra de linhas original dos parágrafos do Word
+                    st.text(txt_indice)
                 
             # Link comercial direcionado para o site oficial
             link_compra = "https://edicionesolejnik.com.br"

@@ -20,12 +20,10 @@ st.markdown("---")
 # =====================================================================
 @st.cache_resource
 def inicializar_sistema_completo():
-    # ID real do seu arquivo capas.zip armazenado no seu Google Drive
     ID_CAPAS_DRIVE = "1CnfjblNWOhWWFNuq4gCs6XGKwMWW9bex"
     arquivo_capas_zip = "capas.zip"
     pasta_destino_capas = "capas"
     
-    # Executa o download estável e a extração do pacote com as 1.890 fotos
     if not os.path.exists(pasta_destino_capas):
         try:
             url_drive = f'https://google.com{ID_CAPAS_DRIVE}'
@@ -35,9 +33,8 @@ def inicializar_sistema_completo():
                     zip_ref.extractall(pasta_destino_capas)
                 os.remove(arquivo_capas_zip)
         except Exception as e:
-            pass # Continua sem travar a inicialização se o Drive oscilar
+            pass
 
-    # Localiza automaticamente a Planilha Excel na raiz do GitHub
     caminho_excel = None
     for arquivo in os.listdir('.'):
         if arquivo.lower().endswith(('.xlsx', '.xls', '.csv')) and not arquivo.startswith('~$'):
@@ -47,25 +44,21 @@ def inicializar_sistema_completo():
     if not caminho_excel:
         return None, None, "❌ Erro: Planilha Excel não localizada na raiz do seu GitHub. Garanta o upload do arquivo junto ao código!"
 
-    # Lê a planilha assumindo que a linha 0 contém o cabeçalho real enviado (Editorial, ISBN-EAN, etc.)
     df_base = pd.read_excel(caminho_excel, header=0)
-    df_base.columns = [str(c).strip() for c in df_base.columns] # Limpa espaços invisíveis nos títulos das colunas
+    df_base.columns = [str(c).strip() for c in df_base.columns]
 
     documents = []
     lista_obras_atualizada = []
 
-    # Loop para processar os dados exatos extraídos da sua Planilha Master
     for idx, row in df_base.iterrows():
         titulo_obra = str(row.get('Titulo - Sub.titulo', row.get('Título', 'Sem Título'))).strip()
         autor_obra = str(row.get('Autor', 'Autor Desconhecido')).strip()
         
-        # Limpa o ISBN-EAN para fazer a amarração com o nome do arquivo de imagem
         raw_isbn = str(row.get('ISBN-EAN', '')).strip().replace('.0', '')
         isbn_limpo = "".join([c for c in raw_isbn if c.isdigit()])
         if not isbn_limpo: 
             continue
             
-        # Coleta os textos estruturados ricos de Resenha e Índice da Planilha
         txt_resenha = str(row.get('Reseña', 'Reseña técnica disponible bajo consulta en la Editorial.')).strip()
         txt_indice = str(row.get('Indice_Completo', 'Índice detalhado disponible bajo consulta.')).strip()
         
@@ -74,7 +67,6 @@ def inicializar_sistema_completo():
         if txt_indice.lower() == 'nan' or not txt_indice:
             txt_indice = "Índice detalhado disponible bajo consulta en la Editorial."
 
-        # Atualiza a linha da tabela na memória para manter o DataFrame limpo
         obra_dict = row.to_dict()
         obra_dict['ISBN_Chave'] = isbn_limpo
         obra_dict['Titulo_Fixo'] = titulo_obra
@@ -83,7 +75,6 @@ def inicializar_sistema_completo():
         obra_dict['Indice_Fixo'] = txt_indice
         lista_obras_atualizada.append(obra_dict)
         
-        # Constrói o documento textual para o motor de busca semântica por IA (Suporta PT/ES)
         materia_direito = str(row.get('Materia Derecho', ''))
         sub_materia = str(row.get('Sub. Materia', ''))
         
@@ -97,14 +88,13 @@ def inicializar_sistema_completo():
         
     df_processado = pd.DataFrame(lista_obras_atualizada)
     
-    # Inicializa o cérebro de IA do buscador semântico
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     vectorstore = Chroma.from_documents(documents, embeddings)
-    retriever_ia = vectorstore.as_retriever(search_kwargs={"k": 4}) # Traz as 4 obras doutrinárias mais correlatas
+    retriever_ia = vectorstore.as_retriever(search_kwargs={"k": 4})
     
     return retriever_ia, df_processado, f"✅ {len(df_processado)} livros do catálogo Olejnik integrados e operacionais!"
 
-# Inicializa o sistema de forma transparente
+# Inicialização do sistema
 with st.spinner("Inicializando o motor de IA e carregando o catálogo da Ediciones Olejnik..."):
     retriever, df_dados, mensagem_sistema = inicializar_sistema_completo()
 
@@ -112,7 +102,7 @@ if retriever is None:
     st.error(mensagem_sistema)
     st.stop()
 
-# Painel Lateral Informativo para Advogados e Promotores
+# Painel Lateral Informativo
 st.sidebar.success(mensagem_sistema)
 st.sidebar.markdown("### 🛠️ Guia de Trabalho")
 st.sidebar.info("A **Pesquisa Cognitiva** faz uma varredura inteligente por IA em toda a doutrina. Os **Filtros** localizam termos e autores exatos.")
@@ -122,11 +112,11 @@ st.sidebar.info("A **Pesquisa Cognitiva** faz uma varredura inteligente por IA e
 # =====================================================================
 aba_ia, aba_tradicional = st.tabs(["🧠 Pesquisa Cognitiva por IA (Casos e Temas)", "🔍 Filtros Tradicionais (Autor / Palavra-Chave)"])
 
-obras_localizadas = [] # Lista limpa que guardará os resultados que vão para a tela
+obras_localizadas = []
 
 with aba_ia:
     pergunta_advogado = st.text_input("Descreva o caso jurídico, tese ou área que você deseja consultar (PT / ES):", 
-                                     placeholder="Ex: Carga de la prueba en el proceso tributario o cuidado compartido de los hijos menores...", key="busca_ia")
+                                     placeholder="Ex: Carga de la prueba en el processo... ", key="busca_ia")
     if pergunta_advogado:
         with st.spinner("IA executando varredura pelos Índices e Resenhas..."):
             documentos_ia = retriever.invoke(pergunta_advogado)
@@ -168,7 +158,6 @@ if obras_localizadas:
     st.subheader(f"📋 Resultados Encontrados ({len(obras_localizadas)}):")
     st.write("---")
     
-    # Elimina duplicações de listagem se o livro for capturado por múltiplos critérios
     vistos = set()
     obras_unicas = []
     for obra in obras_localizadas:
@@ -179,19 +168,33 @@ if obras_localizadas:
     for item in obras_unicas:
         isbn_alvo = item['isbn_chave']
         
-        # Mapeia as possíveis rotas de extensões das fotos descompactadas da pasta local do gdown
         rotas_capas = [
             f"capas/{isbn_alvo}.jpg", f"capas/{isbn_alvo}.png", f"capas/{isbn_alvo}.jpeg",
             f"capas/capas/{isbn_alvo}.jpg", f"capas/capas/{isbn_alvo}.png"
         ]
         caminho_capa_final = next((c for c in rotas_capas if os.path.exists(c)), None)
         
-        # Montagem do layout de 2 colunas para exibição limpa de cada obra
-        col_esq, col_dir = st.columns([1, 4]) # Dá uma proporção harmônica na tela
+        col_esq, col_dir = st.columns([1, 4])
         
         with col_esq:
-            if camino_capa_final:
+            if caminho_capa_final:
                 st.image(caminho_capa_final, width=165)
             else:
-                # Se o livro não tiver a foto correspondente no zip, monta o card azul com o título e o ISBN
-                card_azul_html = f"""
+                # CORRIGIDO: String HTML direta sem o delimitador triplo para evitar erros de sintaxe
+                card_azul_html = f"<div style='background-color: #1E3A8A; color: #FFFFFF; padding: 22px 12px; border-radius: 6px; text-align: center; min-height: 225px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; border: 1px solid #1D4ED8; box-shadow: 2px 2px 8px rgba(0,0,0,0.15);'><div style='font-size: 11px; font-weight: bold; line-height: 1.3;'>{item['titulo']}</div><div style='background-color: #172554; padding: 4px 6px; border-radius: 4px; font-size: 10px; font-family: monospace; width: 100%;'>ISBN {item['isbn_original']}</div></div>"
+                st.markdown(card_azul_html, unsafe_allow_html=True)
+                
+        with col_dir:
+            st.markdown(f"### **{item['titulo']}**")
+            st.markdown(f"👤 **Autor:** {item['autor']}  |  🆔 **ISBN do Livro:** {item['isbn_original']}")
+            
+            with st.expander("📝 Ver Resumen Técnico / Reseña Completa"):
+                st.write(item['resumo'])
+                
+            with st.expander("📖 Ver Sumário / Índice Detalhado por Capítulos"):
+                st.text(item['indice'])
+                
+            link_venda_oficial = "https://edicionesolejnik.com.br"
+            st.markdown(f"<a href='{link_venda_oficial}' target='_blank'><button style='background-color:#1E3A8A; color:white; border:none; padding:10px 18px; border-radius:4px; cursor:pointer; font-weight:bold;'>🛒 Comprar no Site Oficial</button></a>", unsafe_allow_html=True)
+            
+        st.markdown("<br><hr style='border-top: 1px dashed #bbb;'><br>", unsafe_allow_html=True)

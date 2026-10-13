@@ -12,24 +12,18 @@ from langchain_community.vectorstores import Chroma
 # =====================================================================
 st.set_page_config(page_title="Ediciones Olejnik - Buscador IA", page_icon="⚖️", layout="wide")
 
-# Estilização completa do layout e dos componentes de aplicativo via CSS
 st.markdown("""
     <style>
-        /* Ajuste de margens do Streamlit */
         .block-container {
             padding-top: 1rem;
             padding-bottom: 0rem;
         }
-        
-        /* Estilização corporativa para os botões expansíveis (Resumo/Índice) */
         div[data-testid="stExpander"] {
             border: 1px solid #E5E7EB !important;
             box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
             border-radius: 6px !important;
             margin-bottom: 10px !important;
         }
-        
-        /* Banner Estruturado Vetorial com Efeito de Desfocagem de Fundo (Biblioteca) */
         .banner-corporativo {
             width: 100%;
             height: 140px;
@@ -45,8 +39,6 @@ st.markdown("""
             margin-bottom: 25px;
             border: 1px solid #333;
         }
-        
-        /* Logotipo Geométrico Oficial Olejnik em Vetor (Resolução Infinita) */
         .caixa-logo {
             width: 120px;
             height: 95px;
@@ -75,8 +67,6 @@ st.markdown("""
             font-style: italic;
             letter-spacing: 0.5px;
         }
-        
-        /* Tipografia do Cabeçalho */
         .bloco-titulos {
             margin-left: 20px;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -95,8 +85,6 @@ st.markdown("""
             letter-spacing: 0.5px;
         }
     </style>
-    
-    <!-- Renderização do Banner Nítido sem dependência de imagem externa pesada -->
     <div class='banner-corporativo'>
         <div class='caixa-logo'>
             <span class='texto-ed'>Ediciones</span>
@@ -109,7 +97,6 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-
 # =====================================================================
 # 2. CARREGAMENTO DAS IMAGENS E PROCESSAMENTO DE DADOS (COM CACHE)
 # =====================================================================
@@ -119,7 +106,6 @@ def inicializar_sistema_completo():
     arquivo_capas_zip = "capas.zip"
     pasta_destino_capas = "capas"
     
-    # Baixa e extrai as 1.890 fotos ordenadas por ISBN diretamente no servidor do Streamlit
     if not os.path.exists(pasta_destino_capas):
         try:
             url_drive = f'https://google.com{ID_CAPAS_DRIVE}'
@@ -128,11 +114,10 @@ def inicializar_sistema_completo():
             if os.path.exists(arquivo_capas_zip):
                 with zipfile.ZipFile(arquivo_capas_zip, 'r') as zip_ref:
                     zip_ref.extractall(pasta_destino_capas)
-                os.remove(arquivo_capas_zip) # Limpa o zip para poupar espaço
+                os.remove(arquivo_capas_zip)
         except Exception as e:
             pass
 
-    # Localiza a Planilha Excel na raiz do GitHub
     caminho_excel = None
     for arquivo in os.listdir('.'):
         if arquivo.lower().endswith(('.xlsx', '.xls', '.csv')) and not arquivo.startswith('~$'):
@@ -140,7 +125,7 @@ def inicializar_sistema_completo():
             break
             
     if not caminho_excel:
-        return None, None, "❌ Erro: Planilha Excel não localizada na raiz do seu GitHub. Garanta o upload do arquivo junto ao código!"
+        return None, None, "❌ Erro: Planilha Excel não localizada na raiz do seu GitHub."
 
     df_base = pd.read_excel(caminho_excel, header=0)
     df_base.columns = [str(c).strip() for c in df_base.columns]
@@ -192,7 +177,6 @@ def inicializar_sistema_completo():
     
     return retriever_ia, df_processado, f"✅ {len(df_processado)} livros do catálogo Olejnik integrados e operacionais!"
 
-# Inicialização do sistema com indicador visual de progresso
 with st.spinner("Inicializando o motor de IA e carregando o catálogo da Ediciones Olejnik..."):
     retriever, df_dados, mensagem_sistema = inicializar_sistema_completo()
 
@@ -200,7 +184,6 @@ if retriever is None:
     st.error(mensagem_sistema)
     st.stop()
 
-# Painel Lateral Informativo Corporativo
 st.sidebar.markdown("<h2 style='color: #1A1A1A; font-size: 20px;'>📊 Status do Sistema</h2>", unsafe_allow_html=True)
 st.sidebar.success(mensagem_sistema)
 st.sidebar.markdown("### 🛠️ Guia de Trabalho")
@@ -235,3 +218,57 @@ with aba_tradicional:
         if autor_sel:
             df_filtrado = df_filtrado[df_filtrado['Autor_Fixo'] == autor_sel]
         if termo_planilha:
+            condicao_titulo = df_filtrado['Titulo_Fixo'].str.contains(termo_planilha, case=False, na=False)
+            if 'Materia Derecho' in df_filtrado.columns:
+                condicao_materia = df_filtrado['Materia Derecho'].astype(str).str.contains(termo_planilha, case=False, na=False)
+                df_filtrado = df_filtrado[condicao_titulo | condicao_materia]
+            else:
+                df_filtrado = df_filtrado[condicao_titulo]
+            
+        for _, r in df_filtrado.iterrows():
+            obras_localizadas.append({
+                "isbn_original": r.get('ISBN-EAN', r['ISBN_Chave']),
+                "isbn_chave": r['ISBN_Chave'],
+                "titulo": r['Titulo_Fixo'],
+                "autor": r['Autor_Fixo'],
+                "resumo": r['Reseña_Fixa'],
+                "indice": r['Indice_Fixo']
+            })
+
+# =====================================================================
+4. EXIBIÇÃO DIAGRAMADA EM FORMATO APP / VITRINE CORPORATIVA PREMIUM
+# =====================================================================
+if obras_localizadas:
+st.write("")
+st.markdown(f"### 📋 Resultados Encontrados ({len(obras_localizadas)})")
+st.write("---")
+vistos = set()
+obras_unicas = []
+for obra in obras_localizadas:
+if obra['isbn_chave'] not in vistos:
+vistos.add(obra['isbn_chave'])
+obras_unicas.append(obra)
+for item in obras_unicas:
+isbn_alvo = item['isbn_chave']
+caminho_foto_png = os.path.join("capas", f"{isbn_alvo}.png")
+caminho_foto_jpg = os.path.join("capas", f"{isbn_alvo}.jpg")
+imagem_final = "unsplash.com"
+if os.path.exists(caminho_foto_png):
+imagem_final = caminho_foto_png
+elif os.path.exists(caminho_foto_jpg):
+imagem_final = caminho_foto_jpg
+col_capa, col_conteudo = st.columns([1, 4])
+with col_capa:
+st.image(imagem_final, use_container_width=True)
+st.markdown(f"ISBN: {item['isbn_original']}", unsafe_allow_html=True)
+with col_conteudo:
+st.markdown(f"{item['titulo']}", unsafe_allow_html=True)
+st.markdown(f"👤 Autor: {item['autor']}", unsafe_allow_html=True)
+with st.expander("📝 Ver Resumen Técnico / Reseña"):
+st.markdown(f"{item['resumo']}", unsafe_allow_html=True)
+with st.expander("📖 Ver Sumário / Índice Detalhado"):
+st.markdown(f"{item['indice']}", unsafe_allow_html=True)
+st.markdown("", unsafe_allow_html=True)
+else:
+if pergunta_advogado or autor_sel or termo_planilha:
+st.warning("⚠️ Nenhum livro correspondente foi localizado no catálogo da Ediciones Olejnik. Tente refinar sua busca por IA ou filtros.")

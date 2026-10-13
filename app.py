@@ -148,7 +148,7 @@ def inicializar_sistema_completo():
         if txt_resenha.lower() == 'nan' or not txt_resenha:
             txt_resenha = "Reseña técnica disponible bajo consulta en la Editorial."
         if txt_indice.lower() == 'nan' or not txt_indice:
-            txt_indice = "Índice detalhado disponible bajo consulta en la Editorial."
+            txt_indice = "Índice detalhado disponible bajo consulta enclave de la Editorial."
 
         obra_dict = row.to_dict()
         obra_dict['ISBN_Chave'] = isbn_limpo
@@ -236,39 +236,50 @@ with aba_tradicional:
             })
 
 # =====================================================================
-4. EXIBIÇÃO DIAGRAMADA EM FORMATO APP / VITRINE CORPORATIVA PREMIUM
+# 4. EXIBIÇÃO DIAGRAMADA EM FORMATO APP / VITRINE CORPORATIVA PREMIUM
 # =====================================================================
 if obras_localizadas:
-st.write("")
-st.markdown(f"### 📋 Resultados Encontrados ({len(obras_localizadas)})")
-st.write("---")
-vistos = set()
-obras_unicas = []
-for obra in obras_localizadas:
-if obra['isbn_chave'] not in vistos:
-vistos.add(obra['isbn_chave'])
-obras_unicas.append(obra)
-for item in obras_unicas:
-isbn_alvo = item['isbn_chave']
-caminho_foto_png = os.path.join("capas", f"{isbn_alvo}.png")
-caminho_foto_jpg = os.path.join("capas", f"{isbn_alvo}.jpg")
-imagem_final = "unsplash.com"
-if os.path.exists(caminho_foto_png):
-imagem_final = caminho_foto_png
-elif os.path.exists(caminho_foto_jpg):
-imagem_final = caminho_foto_jpg
-col_capa, col_conteudo = st.columns([1, 4])
-with col_capa:
-st.image(imagem_final, use_container_width=True)
-st.markdown(f"ISBN: {item['isbn_original']}", unsafe_allow_html=True)
-with col_conteudo:
-st.markdown(f"{item['titulo']}", unsafe_allow_html=True)
-st.markdown(f"👤 Autor: {item['autor']}", unsafe_allow_html=True)
-with st.expander("📝 Ver Resumen Técnico / Reseña"):
-st.markdown(f"{item['resumo']}", unsafe_allow_html=True)
-with st.expander("📖 Ver Sumário / Índice Detalhado"):
-st.markdown(f"{item['indice']}", unsafe_allow_html=True)
-st.markdown("", unsafe_allow_html=True)
+    st.write("")
+    st.markdown(f"### 📋 Resultados Encontrados ({len(obras_localizadas)})")
+    st.write("---")
+    
+    vistos = set()
+    obras_unicas = []
+    for obra in obras_localizadas:
+        if obra['isbn_chave'] not in vistos:
+            vistos.add(obra['isbn_chave'])
+            obras_unicas.append(obra)
+            
+    for item in obras_unicas:
+        isbn_alvo = item['isbn_chave']
+        
+        caminho_foto_png = os.path.join("capas", f"{isbn_alvo}.png")
+        caminho_foto_jpg = os.path.join("capas", f"{isbn_alvo}.jpg")
+        
+        imagem_final = "https://unsplash.com"
+        
+        if os.path.exists(caminho_foto_png):
+            imagem_final = caminho_foto_png
+        elif os.path.exists(caminho_foto_jpg):
+            imagem_final = caminho_foto_jpg
+            
+        col_capa, col_conteudo = st.columns([1, 4])
+        
+        with col_capa:
+            st.image(imagem_final, use_container_width=True)
+            st.markdown(f"<p style='text-align: center; color: #6B7280; font-size: 11px; margin-top: 5px;'><b>ISBN:</b> {item['isbn_original']}</p>", unsafe_allow_html=True)
+            
+        with col_conteudo:
+            st.markdown(f"<h3 style='color: #1A1A1A; margin-top: 0px; margin-bottom: 4px; font-size: 21px; font-family: sans-serif;'>{item['titulo']}</h3>", unsafe_allow_html=True)
+            st.markdown(f"<p style='color: #4B5563; font-size: 14px; margin-bottom: 15px;'>👤 <b>Autor:</b> {item['autor']}</p>", unsafe_allow_html=True)
+            
+            with st.expander("📝 Ver Resumen Técnico / Reseña"):
+                st.markdown(f"<div style='background-color: #F9FAFB; padding: 15px; border-radius: 6px; border-left: 4px solid #1A1A1A; color: #374151; font-size: 14px;'>{item['resumo']}</div>", unsafe_allow_html=True)
+                
+            with st.expander("📖 Ver Sumário / Índice Detalhado"):
+                st.markdown(f"<div style='background-color: #F9FAFB; padding: 15px; border-radius: 6px; border-left: 4px solid #1A1A1A; color: #374151; font-size: 14px;'>{item['indice']}</div>", unsafe_allow_html=True)
+        
+        st.markdown("<hr style='margin-top: 15px; margin-bottom: 15px; border: 0; border-top: 1px solid #F3F4F6;'>", unsafe_allow_html=True)
 else:
-if pergunta_advogado or autor_sel or termo_planilha:
-st.warning("⚠️ Nenhum livro correspondente foi localizado no catálogo da Ediciones Olejnik. Tente refinar sua busca por IA ou filtros.")
+    if 'pergunta_advogado' in locals() and (pergunta_advogado or autor_sel or termo_planilha):
+        st.warning("⚠️ Nenhum livro correspondente foi localizado no catálogo da Ediciones Olejnik. Tente refinar sua busca por IA ou filtros.")

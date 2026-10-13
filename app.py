@@ -20,21 +20,26 @@ st.markdown("---")
 # =====================================================================
 @st.cache_resource
 def inicializar_sistema_completo():
+    # ID real do seu arquivo capas.zip do Google Drive
     ID_CAPAS_DRIVE = "1CnfjblNWOhWWFNuq4gCs6XGKwMWW9bex"
     arquivo_capas_zip = "capas.zip"
     pasta_destino_capas = "capas"
     
+    # Baixa e extrai as 1.890 fotos diretamente no servidor do Streamlit
     if not os.path.exists(pasta_destino_capas):
         try:
+            # Força o gdown a usar a URL estável para arquivos grandes do Drive
             url_drive = f'https://google.com{ID_CAPAS_DRIVE}'
-            gdown.download(url_drive, arquivo_capas_zip, quiet=True)
+            gdown.download(url_drive, arquivo_capas_zip, quiet=True, fuzzy=True)
+            
             if os.path.exists(arquivo_capas_zip):
                 with zipfile.ZipFile(arquivo_capas_zip, 'r') as zip_ref:
                     zip_ref.extractall(pasta_destino_capas)
-                os.remove(arquivo_capas_zip)
+                os.remove(arquivo_capas_zip) # Limpa o zip para poupar espaço
         except Exception as e:
             pass
 
+    # Localiza a Planilha Excel na raiz do GitHub
     caminho_excel = None
     for arquivo in os.listdir('.'):
         if arquivo.lower().endswith(('.xlsx', '.xls', '.csv')) and not arquivo.startswith('~$'):
@@ -127,7 +132,7 @@ with aba_tradicional:
     col_f1, col_f2 = st.columns(2)
     with col_f1:
         autores_planilha = sorted(df_dados['Autor_Fixo'].dropna().unique())
-        autor_sel = st.selectbox("Selecione um Autor específico do catálogo:", [""] + autores_planilha)
+        autor_sel = st.selectbox("Selecione um Autor específico do catálogo:", [""] + autores_disponiveis if 'autores_disponiveis' in locals() else [""] + autores_planilha)
     with col_f2:
         termo_planilha = st.text_input("Buscar por termo exato no Título ou Matéria:")
         
@@ -168,19 +173,20 @@ if obras_localizadas:
     for item in obras_unicas:
         isbn_alvo = item['isbn_chave']
         
+        # Estrutura de varredura inteligente de caminhos possíveis para achar as capas extraídas
         rotas_capas = [
             f"capas/{isbn_alvo}.jpg", f"capas/{isbn_alvo}.png", f"capas/{isbn_alvo}.jpeg",
             f"capas/capas/{isbn_alvo}.jpg", f"capas/capas/{isbn_alvo}.png"
         ]
         caminho_capa_final = next((c for c in rotas_capas if os.path.exists(c)), None)
         
-        col_esq, col_dir = st.columns([1, 4])
+        col_esq, col_dir = st.columns([1, 4]) # Mantém a proporção exata de colunas na tela
         
         with col_esq:
             if caminho_capa_final:
-                st.image(caminho_capa_final, width=165)
+                st.image(caminho_capa_final, width=160)
             else:
-                # CORRIGIDO: String HTML direta sem o delimitador triplo para evitar erros de sintaxe
+                # Exibe o card azul estável com o Título e o ISBN se a foto física ainda não estiver no servidor
                 card_azul_html = f"<div style='background-color: #1E3A8A; color: #FFFFFF; padding: 22px 12px; border-radius: 6px; text-align: center; min-height: 225px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; border: 1px solid #1D4ED8; box-shadow: 2px 2px 8px rgba(0,0,0,0.15);'><div style='font-size: 11px; font-weight: bold; line-height: 1.3;'>{item['titulo']}</div><div style='background-color: #172554; padding: 4px 6px; border-radius: 4px; font-size: 10px; font-family: monospace; width: 100%;'>ISBN {item['isbn_original']}</div></div>"
                 st.markdown(card_azul_html, unsafe_allow_html=True)
                 
@@ -193,8 +199,3 @@ if obras_localizadas:
                 
             with st.expander("📖 Ver Sumário / Índice Detalhado por Capítulos"):
                 st.text(item['indice'])
-                
-            link_venda_oficial = "https://edicionesolejnik.com.br"
-            st.markdown(f"<a href='{link_venda_oficial}' target='_blank'><button style='background-color:#1E3A8A; color:white; border:none; padding:10px 18px; border-radius:4px; cursor:pointer; font-weight:bold;'>🛒 Comprar no Site Oficial</button></a>", unsafe_allow_html=True)
-            
-        st.markdown("<br><hr style='border-top: 1px dashed #bbb;'><br>", unsafe_allow_html=True)

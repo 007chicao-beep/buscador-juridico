@@ -28,7 +28,7 @@ def inicializar_sistema_completo():
     # Baixa e extrai as 1.890 fotos diretamente no servidor do Streamlit
     if not os.path.exists(pasta_destino_capas):
         try:
-            # CORREÇÃO DO LINK: Formato correto para o gdown baixar arquivos grandes do Drive sem bloqueios
+            # Força o gdown a usar a URL estável para arquivos grandes do Drive
             url_drive = f'https://google.com{ID_CAPAS_DRIVE}'
             gdown.download(url_drive, arquivo_capas_zip, quiet=True, fuzzy=True)
             
@@ -176,18 +176,7 @@ if obras_localizadas:
         st.markdown(f"### {item['titulo']}")
         st.markdown(f"**Autor:** {item['autor']} | **ISBN:** {item['isbn_original']}")
         
-        # INSERÇÃO CIRÚRGICA DA FOTO: Procura pelo arquivo extraído na pasta local
-        isbn_alvo = item['isbn_chave']
-        caminho_foto_png = os.path.join("capas", f"{isbn_alvo}.png")
-        caminho_foto_jpg = os.path.join("capas", f"{isbn_alvo}.jpg")
-        
-        # Tenta carregar o arquivo local (.png ou .jpg), se não achar, não mostra nada para não quebrar a tela
-        if os.path.exists(caminho_foto_png):
-            st.image(caminho_foto_png, width=200)
-        elif os.path.exists(caminho_foto_jpg):
-            st.image(caminho_foto_jpg, width=200)
-        
-        # Mantém intactas as sanfonas e o layout amplo dos índices que você aprovou
+        # Retorna aos botões originais que você tinha na primeira versão
         with st.expander("▶️ Ver Resumen Técnico"):
             st.write(item['resumo'])
             

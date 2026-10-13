@@ -226,7 +226,7 @@ with aba_tradicional:
     col_f1, col_f2 = st.columns(2)
     with col_f1:
         autores_planilha = sorted(df_dados['Autor_Fixo'].dropna().unique())
-        autor_sel = st.selectbox("Selecione um Autor específico do catálogo:", [""] + autores_planilha)
+        autor_sel = st.selectbox("Selecione um Autor específico do catálogo:", [""] + autores_disponiveis if 'autores_disponiveis' in locals() else [""] + autores_planilha)
     with col_f2:
         termo_planilha = st.text_input("Buscar por termo exato no Título ou Matéria:")
         
@@ -235,4 +235,3 @@ with aba_tradicional:
         if autor_sel:
             df_filtrado = df_filtrado[df_filtrado['Autor_Fixo'] == autor_sel]
         if termo_planilha:
-            df_filtrado = df_filtrado[

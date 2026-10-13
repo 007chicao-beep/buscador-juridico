@@ -8,7 +8,7 @@ from langchain_community.vectorstores import Chroma
 # 1. CONFIGURAÇÃO VISUAL DA ABA DO NAVEGADOR
 st.set_page_config(page_title="Ediciones Olejnik - Buscador IA", page_icon="⚖️", layout="wide")
 
-# Cabeçalho com a identidade visual da Editora
+# Cabeçalho original intacto com a identidade visual da Editora
 st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>⚖️ Ediciones Olejnik</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align: center; color: #555;'>Buscador Bibliográfico Cognitivo para Ciências Jurídicas</h3>", unsafe_allow_html=True)
 st.markdown("---")
@@ -18,7 +18,6 @@ st.markdown("---")
 # =====================================================================
 @st.cache_resource
 def inicializar_sistema_completo():
-    # Localiza a Planilha Excel na raiz do GitHub
     caminho_excel = None
     for arquivo in os.listdir('.'):
         if arquivo.lower().endswith(('.xlsx', '.xls', '.csv')) and not arquivo.startswith('~$'):
@@ -86,7 +85,7 @@ if retriever is None:
     st.error(mensagem_sistema)
     st.stop()
 
-# Painel Lateral Informativo
+# Painel Lateral Informativo original
 st.sidebar.success(mensagem_sistema)
 st.sidebar.markdown("### 🛠️ Guia de Trabalho")
 st.sidebar.info("A **Pesquisa Cognitiva** faz uma varredura inteligente por IA em toda a doutrina. Os **Filtros** localizam termos e autores exatos.")
@@ -138,7 +137,7 @@ with aba_tradicional:
             })
 
 # =====================================================================
-# 4. EXIBIÇÃO ORGANIZADA E DIAGRAMADA DOS LIVROS
+# 4. EXIBIÇÃO ORGANIZADA E DIAGRAMADA DOS LIVROS WITH SUPABASE IMAGES
 # =====================================================================
 if obras_localizadas:
     st.subheader(f"📋 Resultados Encontrados ({len(obras_localizadas)}):")
@@ -155,19 +154,19 @@ if obras_localizadas:
         st.markdown(f"### {item['titulo']}")
         st.markdown(f"**Autor:** {item['autor']} | **ISBN:** {item['isbn_original']}")
         
-        # BUSCA DIRETA PELA CAPA NA WEB (Sem precisar baixar zip ou gdown)
-        # Link público direto que puxa a foto do catálogo oficial pelo número do ISBN
-        url_capa_web = f"https://edicionesolejnik.com{item['isbn_chave']}.jpg"
+        # LINK DO SEU STORAGE PÚBLICO DO SUPABASE:
+        # Monta a rota direta com o ISBN do livro e a extensão .jpg que aparece na sua foto
+        url_capa_supabase = f"https://supabase.co{item['isbn_chave']}.jpg"
         
-        # Cria duas colunas para colocar a foto elegantemente ao lado dos botões sem amassar o texto
-        col_foto, col_botoes = st.columns([1, 5])
+        # Cria as duas colunas originais do Streamlit de forma limpa para alinhar a imagem
+        col_foto, col_botoes = st.columns()
         
         with col_foto:
-            # Mostra a imagem direto da URL oficial se o link responder, mantendo tamanho perfeito
-            st.image(url_capa_web, width=140)
+            # Renderiza a capa original puxada do servidor na largura de 140px
+            st.image(url_capa_supabase, width=140)
             
         with col_botoes:
-            # Mantém intactas as suas sanfonas exatamente na mesma posição e largura originais
+            # Mantém intactas suas sanfonas e toda a apresentação ampla que você já havia aprovado
             with st.expander("▶️ Ver Resumen Técnico"):
                 st.write(item['resumo'])
                 

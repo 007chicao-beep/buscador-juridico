@@ -128,32 +128,25 @@ if obras_localizadas:
     obras_unicas = []
     for obra in obras_localizadas:
         if obra['ISBN_Chave'] not in vistos:
-            vistos.add(box_2d) if 'box_2d' in locals() else vistos.add(obra['ISBN_Chave'])
+            vistos.add(obra['ISBN_Chave'])
             obras_unicas.append(obra)
             
     for item in obras_unicas:
         st.markdown(f"### {item['Titulo_Fixo']}")
         st.markdown(f"**Autor:** {item['Autor_Fixo']} | **ISBN:** {item['ISBN-EAN']}")
         
-        # Gera as URLs possíveis (Minúscula .jpg e Maiúscula .JPG)
-        url_minuscula = f"https://supabase.co{item['ISBN_Chave']}.jpg"
-        url_maiuscula = f"https://supabase.co{item['ISBN_Chave']}.JPG"
+        # ROTA DE SERVIDOR 100% CORRIGIDA COM O SEU LINK REAL:
+        url_capa_supabase = f"https://lvenvwkuwtibosrdujkj.supabase.co/storage/v1/object/public/capas/capas/{item['ISBN_Chave']}.jpg"
         
+        # Organização em colunas idêntica ao seu padrão original aprovado
         col_foto, col_botoes = st.columns(2)
         
         with col_foto:
-            # Engenharia HTML: Se a imagem minúscula falhar (onerror), o navegador muda 
-            # o link automaticamente para a maiúscula em tempo de execução, sem gerar erros
-            codigo_html_capa = f"""
-                <img src="{url_minuscula}" 
-                     width="140" 
-                     onerror="this.onerror=null; this.src='{url_maiuscula}';" 
-                     style="border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.15);"
-                />
-            """
-            st.markdown(codigo_html_capa, unsafe_allow_html=True)
+            # Renderiza a capa puxada direto da rota oficial corrigida
+            st.image(url_capa_supabase, width=140)
             
         with col_botoes:
+            # Preserva integralmente suas sanfonas e a largura dos textos originais
             with st.expander("▶️ Ver Resumen Técnico"):
                 st.write(item['Reseña_Fixa'])
                 

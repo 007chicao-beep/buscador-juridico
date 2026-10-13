@@ -17,7 +17,6 @@ st.markdown("---")
 # =====================================================================
 @st.cache_resource
 def inicializar_sistema_completo():
-    # Localiza a Planilha Excel na raiz do GitHub
     caminho_excel = None
     for arquivo in os.listdir('.'):
         if arquivo.lower().endswith(('.xlsx', '.xls', '.csv')) and not arquivo.startswith('~$'):
@@ -56,7 +55,6 @@ def inicializar_sistema_completo():
         obra_dict['Reseña_Fixa'] = txt_resenha
         obra_dict['Indice_Fixo'] = txt_indice
         
-        # Mapeia as matérias para busca textual
         obra_dict['Materia_Fixa'] = str(row.get('Materia Derecho', '')).strip()
         obra_dict['SubMateria_Fixa'] = str(row.get('Sub. Materia', '')).strip()
         
@@ -89,13 +87,12 @@ with aba_ia:
     pergunta_advogado = st.text_input("Descreva o caso jurídico, tese ou área que você deseja consultar (PT / ES):", 
                                      placeholder="Ex: Carga de la prueba en el processo... ", key="busca_ia")
     if pergunta_advogado:
-        # Busca textual inteligente e ultra-leve que simula a IA vasculhando resumos e índices
         df_busca = df_dados[
             df_dados['Titulo_Fixo'].str.contains(pergunta_advogado, case=False, na=False) |
             df_dados['Reseña_Fixa'].str.contains(pergunta_advogado, case=False, na=False) |
             df_dados['Indice_Fixo'].str.contains(pergunta_advogado, case=False, na=False) |
             df_dados['Materia_Fixa'].str.contains(pergunta_advogado, case=False, na=False)
-        ].head(4) # Mantém o limite original de 4 resultados mais relevantes
+        ].head(4)
         
         for _, r in df_busca.iterrows():
             obras_localizadas.append(r.to_dict())
@@ -131,25 +128,32 @@ if obras_localizadas:
     obras_unicas = []
     for obra in obras_localizadas:
         if obra['ISBN_Chave'] not in vistos:
-            vistos.add(obra['ISBN_Chave'])
+            vistos.add(box_2d) if 'box_2d' in locals() else vistos.add(obra['ISBN_Chave'])
             obras_unicas.append(obra)
             
     for item in obras_unicas:
         st.markdown(f"### {item['Titulo_Fixo']}")
         st.markdown(f"**Autor:** {item['Autor_Fixo']} | **ISBN:** {item['ISBN-EAN']}")
         
-        # LINK DO SEU STORAGE PÚBLICO DO SUPABASE:
-        url_capa_supabase = f"https://supabase.co{item['ISBN_Chave']}.jpg"
+        # Gera as URLs possíveis (Minúscula .jpg e Maiúscula .JPG)
+        url_minuscula = f"https://supabase.co{item['ISBN_Chave']}.jpg"
+        url_maiuscula = f"https://supabase.co{item['ISBN_Chave']}.JPG"
         
-        # CORREÇÃO CRUCIAL AQUI: Especificamos explicitamente a criação de 2 colunas
         col_foto, col_botoes = st.columns(2)
         
         with col_foto:
-            # Carrega a imagem do Supabase de forma instantânea
-            st.image(url_capa_supabase, width=140)
+            # Engenharia HTML: Se a imagem minúscula falhar (onerror), o navegador muda 
+            # o link automaticamente para a maiúscula em tempo de execução, sem gerar erros
+            codigo_html_capa = f"""
+                <img src="{url_minuscula}" 
+                     width="140" 
+                     onerror="this.onerror=null; this.src='{url_maiuscula}';" 
+                     style="border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.15);"
+                />
+            """
+            st.markdown(codigo_html_capa, unsafe_allow_html=True)
             
         with col_botoes:
-            # Preserva integralmente suas sanfonas e a largura dos textos originais
             with st.expander("▶️ Ver Resumen Técnico"):
                 st.write(item['Reseña_Fixa'])
                 
@@ -158,5 +162,5 @@ if obras_localizadas:
             
         st.write("---")
 else:
-    if pergunta_advogado or autor_sel or termo_planilha:
+    if 'pergunta_advogado' in locals() and (pergunta_advogado or autor_sel or termo_planilha):
         st.warning("⚠️ Nenhum livro foi localizado com os termos aplicados.")

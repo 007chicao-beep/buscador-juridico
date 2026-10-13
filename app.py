@@ -7,117 +7,39 @@ from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 
-# =====================================================================
-# 1. CONFIGURAÇÃO VISUAL E BANNER CORPORATIVO (IMPECÁVEL EM 4K)
-# =====================================================================
+# 1. CONFIGURAÇÃO VISUAL DA ABA DO NAVEGADOR
 st.set_page_config(page_title="Ediciones Olejnik - Buscador IA", page_icon="⚖️", layout="wide")
 
-st.markdown("""
-    <style>
-        .block-container {
-            padding-top: 1rem;
-            padding-bottom: 0rem;
-        }
-        div[data-testid="stExpander"] {
-            border: 1px solid #E5E7EB !important;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
-            border-radius: 6px !important;
-            margin-bottom: 10px !important;
-        }
-        .banner-corporativo {
-            width: 100%;
-            height: 140px;
-            background: linear-gradient(rgba(26, 26, 26, 0.75), rgba(26, 26, 26, 0.75)), 
-                        url('https://unsplash.com');
-            background-size: cover;
-            background-position: center;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            padding-left: 30px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            margin-bottom: 25px;
-            border: 1px solid #333;
-        }
-        .caixa-logo {
-            width: 120px;
-            height: 95px;
-            background: linear-gradient(140deg, #ffffff 50%, #1a1a1a 50%);
-            border: 1px solid #1a1a1a;
-            position: relative;
-            font-family: 'Century Gothic', 'Segoe UI', Arial, sans-serif;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-            flex-shrink: 0;
-        }
-        .texto-ed {
-            position: absolute;
-            top: 25px;
-            left: 10px;
-            color: #1a1a1a;
-            font-size: 16px;
-            font-weight: bold;
-            letter-spacing: 0.5px;
-        }
-        .texto-ol {
-            position: absolute;
-            bottom: 12px;
-            right: 10px;
-            color: #ffffff;
-            font-size: 19px;
-            font-style: italic;
-            letter-spacing: 0.5px;
-        }
-        .bloco-titulos {
-            margin-left: 20px;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .titulo-principal {
-            color: #ffffff;
-            margin: 0;
-            font-size: 26px;
-            font-weight: 600;
-            letter-spacing: 1.5px;
-        }
-        .sub-principal {
-            color: #9CA3AF;
-            margin: 4px 0 0 0;
-            font-size: 14px;
-            letter-spacing: 0.5px;
-        }
-    </style>
-    <div class='banner-corporativo'>
-        <div class='caixa-logo'>
-            <span class='texto-ed'>Ediciones</span>
-            <span class='texto-ol'>Olejnik</span>
-        </div>
-        <div class='bloco-titulos'>
-            <h1 class='titulo-principal'>Ediciones Olejnik</h1>
-            <p class='sub-principal'>Buscador Bibliográfico Cognitivo para Ciencias Jurídicas</p>
-        </div>
-    </div>
-""", unsafe_allow_html=True)
+# Cabeçalho com a identidade visual da Editora
+st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>⚖️ Ediciones Olejnik</h1>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align: center; color: #555;'>Buscador Bibliográfico Cognitivo para Ciências Jurídicas</h3>", unsafe_allow_html=True)
+st.markdown("---")
 
 # =====================================================================
 # 2. CARREGAMENTO DAS IMAGENS E PROCESSAMENTO DE DADOS (COM CACHE)
 # =====================================================================
 @st.cache_resource
 def inicializar_sistema_completo():
+    # ID real do seu arquivo capas.zip do Google Drive
     ID_CAPAS_DRIVE = "1CnfjblNWOhWWFNuq4gCs6XGKwMWW9bex"
     arquivo_capas_zip = "capas.zip"
     pasta_destino_capas = "capas"
     
+    # Baixa e extrai as 1.890 fotos diretamente no servidor do Streamlit
     if not os.path.exists(pasta_destino_capas):
         try:
+            # Força o gdown a usar a URL estável para arquivos grandes do Drive
             url_drive = f'https://google.com{ID_CAPAS_DRIVE}'
             gdown.download(url_drive, arquivo_capas_zip, quiet=True, fuzzy=True)
             
             if os.path.exists(arquivo_capas_zip):
                 with zipfile.ZipFile(arquivo_capas_zip, 'r') as zip_ref:
                     zip_ref.extractall(pasta_destino_capas)
-                os.remove(arquivo_capas_zip)
+                os.remove(arquivo_capas_zip) # Limpa o zip para poupar espaço
         except Exception as e:
             pass
 
+    # Localiza a Planilha Excel na raiz do GitHub
     caminho_excel = None
     for arquivo in os.listdir('.'):
         if arquivo.lower().endswith(('.xlsx', '.xls', '.csv')) and not arquivo.startswith('~$'):
@@ -125,7 +47,7 @@ def inicializar_sistema_completo():
             break
             
     if not caminho_excel:
-        return None, None, "❌ Erro: Planilha Excel não localizada na raiz do seu GitHub."
+        return None, None, "❌ Erro: Planilha Excel não localizada na raiz do seu GitHub. Garanta o upload do arquivo junto ao código!"
 
     df_base = pd.read_excel(caminho_excel, header=0)
     df_base.columns = [str(c).strip() for c in df_base.columns]
@@ -148,7 +70,7 @@ def inicializar_sistema_completo():
         if txt_resenha.lower() == 'nan' or not txt_resenha:
             txt_resenha = "Reseña técnica disponible bajo consulta en la Editorial."
         if txt_indice.lower() == 'nan' or not txt_indice:
-            txt_indice = "Índice detalhado disponible bajo consulta enclave de la Editorial."
+            txt_indice = "Índice detalhado disponible bajo consulta."
 
         obra_dict = row.to_dict()
         obra_dict['ISBN_Chave'] = isbn_limpo
@@ -177,6 +99,7 @@ def inicializar_sistema_completo():
     
     return retriever_ia, df_processado, f"✅ {len(df_processado)} livros do catálogo Olejnik integrados e operacionais!"
 
+# Inicialização do sistema
 with st.spinner("Inicializando o motor de IA e carregando o catálogo da Ediciones Olejnik..."):
     retriever, df_dados, mensagem_sistema = inicializar_sistema_completo()
 
@@ -184,7 +107,7 @@ if retriever is None:
     st.error(mensagem_sistema)
     st.stop()
 
-st.sidebar.markdown("<h2 style='color: #1A1A1A; font-size: 20px;'>📊 Status do Sistema</h2>", unsafe_allow_html=True)
+# Painel Lateral Informativo
 st.sidebar.success(mensagem_sistema)
 st.sidebar.markdown("### 🛠️ Guia de Trabalho")
 st.sidebar.info("A **Pesquisa Cognitiva** faz uma varredura inteligente por IA em toda a doutrina. Os **Filtros** localizam termos e autores exatos.")
@@ -236,11 +159,10 @@ with aba_tradicional:
             })
 
 # =====================================================================
-# 4. EXIBIÇÃO DIAGRAMADA EM FORMATO APP / VITRINE CORPORATIVA PREMIUM
+# 4. EXIBIÇÃO ORGANIZADA E DIAGRAMADA DOS LIVROS
 # =====================================================================
 if obras_localizadas:
-    st.write("")
-    st.markdown(f"### 📋 Resultados Encontrados ({len(obras_localizadas)})")
+    st.subheader(f"📋 Resultados Encontrados ({len(obras_localizadas)}):")
     st.write("---")
     
     vistos = set()
@@ -251,35 +173,17 @@ if obras_localizadas:
             obras_unicas.append(obra)
             
     for item in obras_unicas:
-        isbn_alvo = item['isbn_chave']
+        st.markdown(f"### {item['titulo']}")
+        st.markdown(f"**Autor:** {item['autor']} | **ISBN:** {item['isbn_original']}")
         
-        caminho_foto_png = os.path.join("capas", f"{isbn_alvo}.png")
-        caminho_foto_jpg = os.path.join("capas", f"{isbn_alvo}.jpg")
-        
-        imagem_final = "https://unsplash.com"
-        
-        if os.path.exists(caminho_foto_png):
-            imagem_final = caminho_foto_png
-        elif os.path.exists(caminho_foto_jpg):
-            imagem_final = caminho_foto_jpg
+        # Retorna aos botões originais que você tinha na primeira versão
+        with st.expander("▶️ Ver Resumen Técnico"):
+            st.write(item['resumo'])
             
-        col_capa, col_conteudo = st.columns([1, 4])
-        
-        with col_capa:
-            st.image(imagem_final, use_container_width=True)
-            st.markdown(f"<p style='text-align: center; color: #6B7280; font-size: 11px; margin-top: 5px;'><b>ISBN:</b> {item['isbn_original']}</p>", unsafe_allow_html=True)
+        with st.expander("▶️ Ver Sumário"):
+            st.write(item['indice'])
             
-        with col_conteudo:
-            st.markdown(f"<h3 style='color: #1A1A1A; margin-top: 0px; margin-bottom: 4px; font-size: 21px; font-family: sans-serif;'>{item['titulo']}</h3>", unsafe_allow_html=True)
-            st.markdown(f"<p style='color: #4B5563; font-size: 14px; margin-bottom: 15px;'>👤 <b>Autor:</b> {item['autor']}</p>", unsafe_allow_html=True)
-            
-            with st.expander("📝 Ver Resumen Técnico / Reseña"):
-                st.markdown(f"<div style='background-color: #F9FAFB; padding: 15px; border-radius: 6px; border-left: 4px solid #1A1A1A; color: #374151; font-size: 14px;'>{item['resumo']}</div>", unsafe_allow_html=True)
-                
-            with st.expander("📖 Ver Sumário / Índice Detalhado"):
-                st.markdown(f"<div style='background-color: #F9FAFB; padding: 15px; border-radius: 6px; border-left: 4px solid #1A1A1A; color: #374151; font-size: 14px;'>{item['indice']}</div>", unsafe_allow_html=True)
-        
-        st.markdown("<hr style='margin-top: 15px; margin-bottom: 15px; border: 0; border-top: 1px solid #F3F4F6;'>", unsafe_allow_html=True)
+        st.write("---")
 else:
-    if 'pergunta_advogado' in locals() and (pergunta_advogado or autor_sel or termo_planilha):
-        st.warning("⚠️ Nenhum livro correspondente foi localizado no catálogo da Ediciones Olejnik. Tente refinar sua busca por IA ou filtros.")
+    if pergunta_advogado or autor_sel or termo_planilha:
+        st.warning("⚠️ Nenhum livro foi localizado com os termos aplicados.")

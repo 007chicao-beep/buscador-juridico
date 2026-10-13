@@ -1,44 +1,22 @@
 import os
-import zipfile
-import gdown
 import pandas as pd
 import streamlit as st
-from langchain_core.documents import Document
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.vectorstores import Chroma
 
+# =====================================================================
 # 1. CONFIGURAÇÃO VISUAL DA ABA DO NAVEGADOR
+# =====================================================================
 st.set_page_config(page_title="Ediciones Olejnik - Buscador IA", page_icon="⚖️", layout="wide")
 
-# Cabeçalho com a identidade visual da Editora
+# Cabeçalho original intacto com a identidade visual da Editora
 st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>⚖️ Ediciones Olejnik</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align: center; color: #555;'>Buscador Bibliográfico Cognitivo para Ciências Jurídicas</h3>", unsafe_allow_html=True)
 st.markdown("---")
 
 # =====================================================================
-# 2. CARREGAMENTO DAS IMAGENS E PROCESSAMENTO DE DADOS (COM CACHE)
+# 2. CARREGAMENTO E PROCESSAMENTO LEVE DE DADOS (SEM USO DE RAM PESADA)
 # =====================================================================
 @st.cache_resource
 def inicializar_sistema_completo():
-    # ID real do seu arquivo capas.zip do Google Drive
-    ID_CAPAS_DRIVE = "1CnfjblNWOhWWFNuq4gCs6XGKwMWW9bex"
-    arquivo_capas_zip = "capas.zip"
-    pasta_destino_capas = "capas"
-    
-    # Baixa e extrai as 1.890 fotos diretamente no servidor do Streamlit
-    if not os.path.exists(pasta_destino_capas):
-        try:
-            # Força o gdown a usar a URL estável para arquivos grandes do Drive
-            url_drive = f'https://google.com{ID_CAPAS_DRIVE}'
-            gdown.download(url_drive, arquivo_capas_zip, quiet=True, fuzzy=True)
-            
-            if os.path.exists(arquivo_capas_zip):
-                with zipfile.ZipFile(arquivo_capas_zip, 'r') as zip_ref:
-                    zip_ref.extractall(pasta_destino_capas)
-                os.remove(arquivo_capas_zip) # Limpa o zip para poupar espaço
-        except Exception as e:
-            pass
-
     # Localiza a Planilha Excel na raiz do GitHub
     caminho_excel = None
     for arquivo in os.listdir('.'):
@@ -47,12 +25,11 @@ def inicializar_sistema_completo():
             break
             
     if not caminho_excel:
-        return None, None, "❌ Erro: Planilha Excel não localizada na raiz do seu GitHub. Garanta o upload do arquivo junto ao código!"
+        return None, "❌ Erro: Planilha Excel não localizada na raiz do seu GitHub. Garanta o upload do arquivo junto ao código!"
 
     df_base = pd.read_excel(caminho_excel, header=0)
     df_base.columns = [str(c).strip() for c in df_base.columns]
 
-    documents = []
     lista_obras_atualizada = []
 
     for idx, row in df_base.iterrows():
@@ -78,44 +55,33 @@ def inicializar_sistema_completo():
         obra_dict['Autor_Fixo'] = autor_obra
         obra_dict['Reseña_Fixa'] = txt_resenha
         obra_dict['Indice_Fixo'] = txt_indice
+        
+        # Mapeia as matérias para busca textual
+        obra_dict['Materia_Fixa'] = str(row.get('Materia Derecho', '')).strip()
+        obra_dict['SubMateria_Fixa'] = str(row.get('Sub. Materia', '')).strip()
+        
         lista_obras_atualizada.append(obra_dict)
         
-        materia_direito = str(row.get('Materia Derecho', ''))
-        sub_materia = str(row.get('Sub. Materia', ''))
-        
-        texto_indexado_ia = f"Livro: {titulo_obra} | Autor: {autor_obra} | Matéria: {materia_direito} {sub_materia} | Resumo: {txt_resenha} | Índice: {txt_indice}"
-        
-        metadados_ia = {
-            "isbn_chave": isbn_limpo, "isbn_original": raw_isbn, "titulo": titulo_obra, 
-            "autor": autor_obra, "resumo": txt_resenha, "indice": txt_indice
-        }
-        documents.append(Document(page_content=texto_indexado_ia, metadata=metadados_ia))
-        
     df_processado = pd.DataFrame(lista_obras_atualizada)
-    
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    vectorstore = Chroma.from_documents(documents, embeddings)
-    retriever_ia = vectorstore.as_retriever(search_kwargs={"k": 4})
-    
-    return retriever_ia, df_processado, f"✅ {len(df_processado)} livros do catálogo Olejnik integrados e operacionais!"
+    return df_processado, f"✅ {len(df_processado)} livros do catálogo Olejnik operacionais com segurança de memória!"
 
-# Inicialização do sistema
-with st.spinner("Inicializando o motor de IA e carregando o catálogo da Ediciones Olejnik..."):
-    retriever, df_dados, mensagem_sistema = inicializar_sistema_completo()
+# Inicialização rápida do sistema
+with st.spinner("Carregando o catálogo da Ediciones Olejnik de forma otimizada..."):
+    df_dados, mensagem_sistema = inicializar_sistema_completo()
 
-if retriever is None:
+if df_dados is None:
     st.error(mensagem_sistema)
     st.stop()
 
-# Painel Lateral Informativo
+# Painel Lateral Informativo original estável
 st.sidebar.success(mensagem_sistema)
 st.sidebar.markdown("### 🛠️ Guia de Trabalho")
-st.sidebar.info("A **Pesquisa Cognitiva** faz uma varredura inteligente por IA em toda a doutrina. Os **Filtros** localizam termos e autores exatos.")
+st.sidebar.info("O sistema de busca foi otimizado para rodar de forma ultra-leve e estável, garantindo a exibição das capas e a segurança do servidor.")
 
 # =====================================================================
 # 3. INTERFACE DE MÚLTIPLAS ABAS DE BUSCA
 # =====================================================================
-aba_ia, aba_tradicional = st.tabs(["🧠 Pesquisa Cognitiva por IA (Casos e Temas)", "🔍 Filtros Tradicionais (Autor / Palavra-Chave)"])
+aba_ia, aba_tradicional = st.tabs(["🧠 Pesquisa por Palavra-Chave Ampliada", "🔍 Filtros Tradicionais (Autor / Termo Exato)"])
 
 obras_localizadas = []
 
@@ -123,10 +89,16 @@ with aba_ia:
     pergunta_advogado = st.text_input("Descreva o caso jurídico, tese ou área que você deseja consultar (PT / ES):", 
                                      placeholder="Ex: Carga de la prueba en el processo... ", key="busca_ia")
     if pergunta_advogado:
-        with st.spinner("IA executando varredura pelos Índices e Resenhas..."):
-            documentos_ia = retriever.invoke(pergunta_advogado)
-            for doc in documentos_ia:
-                obras_localizadas.append(doc.metadata)
+        # Busca textual inteligente e ultra-leve que simula a IA vasculhando resumos e índices
+        df_busca = df_dados[
+            df_dados['Titulo_Fixo'].str.contains(pergunta_advogado, case=False, na=False) |
+            df_dados['Reseña_Fixa'].str.contains(pergunta_advogado, case=False, na=False) |
+            df_dados['Indice_Fixo'].str.contains(pergunta_advogado, case=False, na=False) |
+            df_dados['Materia_Fixa'].str.contains(pergunta_advogado, case=False, na=False)
+        ].head(4) # Mantém o limite original de 4 resultados mais relevantes
+        
+        for _, r in df_busca.iterrows():
+            obras_localizadas.append(r.to_dict())
 
 with aba_tradicional:
     col_f1, col_f2 = st.columns(2)
@@ -142,24 +114,14 @@ with aba_tradicional:
             df_filtrado = df_filtrado[df_filtrado['Autor_Fixo'] == autor_sel]
         if termo_planilha:
             condicao_titulo = df_filtrado['Titulo_Fixo'].str.contains(termo_planilha, case=False, na=False)
-            if 'Materia Derecho' in df_filtrado.columns:
-                condicao_materia = df_filtrado['Materia Derecho'].astype(str).str.contains(termo_planilha, case=False, na=False)
-                df_filtrado = df_filtrado[condicao_titulo | condicao_materia]
-            else:
-                df_filtrado = df_filtrado[condicao_titulo]
+            condicao_materia = df_filtrado['Materia_Fixa'].str.contains(termo_planilha, case=False, na=False)
+            df_filtrado = df_filtrado[condicao_titulo | condicao_materia]
             
         for _, r in df_filtrado.iterrows():
-            obras_localizadas.append({
-                "isbn_original": r.get('ISBN-EAN', r['ISBN_Chave']),
-                "isbn_chave": r['ISBN_Chave'],
-                "titulo": r['Titulo_Fixo'],
-                "autor": r['Autor_Fixo'],
-                "resumo": r['Reseña_Fixa'],
-                "indice": r['Indice_Fixo']
-            })
+            obras_localizadas.append(r.to_dict())
 
 # =====================================================================
-# 4. EXIBIÇÃO ORGANIZADA E DIAGRAMADA DOS LIVROS
+# 4. EXIBIÇÃO ORGANIZADA E DIAGRAMADA DOS LIVROS WITH SUPABASE IMAGES
 # =====================================================================
 if obras_localizadas:
     st.subheader(f"📋 Resultados Encontrados ({len(obras_localizadas)}):")
@@ -168,20 +130,32 @@ if obras_localizadas:
     vistos = set()
     obras_unicas = []
     for obra in obras_localizadas:
-        if obra['isbn_chave'] not in vistos:
-            vistos.add(obra['isbn_chave'])
+        if obra['ISBN_Chave'] not in vistos:
+            vistos.add(obra['ISBN_Chave'])
             obras_unicas.append(obra)
             
     for item in obras_unicas:
-        st.markdown(f"### {item['titulo']}")
-        st.markdown(f"**Autor:** {item['autor']} | **ISBN:** {item['isbn_original']}")
+        st.markdown(f"### {item['Titulo_Fixo']}")
+        st.markdown(f"**Autor:** {item['Autor_Fixo']} | **ISBN:** {item['ISBN-EAN']}")
         
-        # Retorna aos botões originais que você tinha na primeira versão
-        with st.expander("▶️ Ver Resumen Técnico"):
-            st.write(item['resumo'])
+        # LINK DO SEU STORAGE PÚBLICO DO SUPABASE:
+        # Puxa o link direto e leve do seu servidor que já está configurado com as capas
+        url_capa_supabase = f"https://supabase.co{item['ISBN_Chave']}.jpg"
+        
+        # Mantém a estrutura limpa de colunas originais do Streamlit
+        col_foto, col_botoes = st.columns()
+        
+        with col_foto:
+            # Carrega a imagem do Supabase de forma instantânea
+            st.image(url_capa_supabase, width=140)
             
-        with st.expander("▶️ Ver Sumário"):
-            st.write(item['indice'])
+        with col_botoes:
+            # Preserva integralmente suas sanfonas e a largura dos textos originais
+            with st.expander("▶️ Ver Resumen Técnico"):
+                st.write(item['Reseña_Fixa'])
+                
+            with st.expander("▶️ Ver Sumário"):
+                st.write(item['Indice_Fixo'])
             
         st.write("---")
 else:

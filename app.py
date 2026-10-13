@@ -1,4 +1,6 @@
 import os
+import zipfile
+import gdown
 import pandas as pd
 import streamlit as st
 from langchain_core.documents import Document
@@ -8,16 +10,36 @@ from langchain_community.vectorstores import Chroma
 # 1. CONFIGURAÇÃO VISUAL DA ABA DO NAVEGADOR
 st.set_page_config(page_title="Ediciones Olejnik - Buscador IA", page_icon="⚖️", layout="wide")
 
-# Cabeçalho original intacto com a identidade visual da Editora
+# Cabeçalho com a identidade visual da Editora
 st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>⚖️ Ediciones Olejnik</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align: center; color: #555;'>Buscador Bibliográfico Cognitivo para Ciências Jurídicas</h3>", unsafe_allow_html=True)
 st.markdown("---")
 
 # =====================================================================
-# 2. PROCESSAMENTO DE DADOS (COM CACHE)
+# 2. CARREGAMENTO DAS IMAGENS E PROCESSAMENTO DE DADOS (COM CACHE)
 # =====================================================================
 @st.cache_resource
 def inicializar_sistema_completo():
+    # ID real do seu arquivo capas.zip do Google Drive
+    ID_CAPAS_DRIVE = "1CnfjblNWOhWWFNuq4gCs6XGKwMWW9bex"
+    arquivo_capas_zip = "capas.zip"
+    pasta_destino_capas = "capas"
+    
+    # Baixa e extrai as 1.890 fotos diretamente no servidor do Streamlit
+    if not os.path.exists(pasta_destino_capas):
+        try:
+            # Força o gdown a usar a URL estável para arquivos grandes do Drive
+            url_drive = f'https://google.com{ID_CAPAS_DRIVE}'
+            gdown.download(url_drive, arquivo_capas_zip, quiet=True, fuzzy=True)
+            
+            if os.path.exists(arquivo_capas_zip):
+                with zipfile.ZipFile(arquivo_capas_zip, 'r') as zip_ref:
+                    zip_ref.extractall(pasta_destino_capas)
+                os.remove(arquivo_capas_zip) # Limpa o zip para poupar espaço
+        except Exception as e:
+            pass
+
+    # Localiza a Planilha Excel na raiz do GitHub
     caminho_excel = None
     for arquivo in os.listdir('.'):
         if arquivo.lower().endswith(('.xlsx', '.xls', '.csv')) and not arquivo.startswith('~$'):
@@ -85,7 +107,7 @@ if retriever is None:
     st.error(mensagem_sistema)
     st.stop()
 
-# Painel Lateral Informativo original
+# Painel Lateral Informativo
 st.sidebar.success(mensagem_sistema)
 st.sidebar.markdown("### 🛠️ Guia de Trabalho")
 st.sidebar.info("A **Pesquisa Cognitiva** faz uma varredura inteligente por IA em toda a doutrina. Os **Filtros** localizam termos e autores exatos.")
@@ -137,7 +159,7 @@ with aba_tradicional:
             })
 
 # =====================================================================
-# 4. EXIBIÇÃO ORGANIZADA E DIAGRAMADA DOS LIVROS WITH SUPABASE IMAGES
+# 4. EXIBIÇÃO ORGANIZADA E DIAGRAMADA DOS LIVROS
 # =====================================================================
 if obras_localizadas:
     st.subheader(f"📋 Resultados Encontrados ({len(obras_localizadas)}):")
@@ -154,24 +176,12 @@ if obras_localizadas:
         st.markdown(f"### {item['titulo']}")
         st.markdown(f"**Autor:** {item['autor']} | **ISBN:** {item['isbn_original']}")
         
-        # LINK DO SEU STORAGE PÚBLICO DO SUPABASE:
-        # Monta a rota direta com o ISBN do livro e a extensão .jpg que aparece na sua foto
-        url_capa_supabase = f"https://supabase.co{item['isbn_chave']}.jpg"
-        
-        # Cria as duas colunas originais do Streamlit de forma limpa para alinhar a imagem
-        col_foto, col_botoes = st.columns()
-        
-        with col_foto:
-            # Renderiza a capa original puxada do servidor na largura de 140px
-            st.image(url_capa_supabase, width=140)
+        # Retorna aos botões originais que você tinha na primeira versão
+        with st.expander("▶️ Ver Resumen Técnico"):
+            st.write(item['resumo'])
             
-        with col_botoes:
-            # Mantém intactas suas sanfonas e toda a apresentação ampla que você já havia aprovado
-            with st.expander("▶️ Ver Resumen Técnico"):
-                st.write(item['resumo'])
-                
-            with st.expander("▶️ Ver Sumário"):
-                st.write(item['indice'])
+        with st.expander("▶️ Ver Sumário"):
+            st.write(item['indice'])
             
         st.write("---")
 else:

@@ -7,28 +7,121 @@ from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 
-# 1. CONFIGURAÇÃO VISUAL DA ABA DO NAVEGADOR
+# =====================================================================
+# 1. CONFIGURAÇÃO VISUAL E BANNER CORPORATIVO (IMPECÁVEL EM 4K)
+# =====================================================================
 st.set_page_config(page_title="Ediciones Olejnik - Buscador IA", page_icon="⚖️", layout="wide")
 
-# Cabeçalho com a identidade visual da Editora
-st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>⚖️ Ediciones Olejnik</h1>", unsafe_allow_html=True)
-st.markdown("<h3 style='text-align: center; color: #555;'>Buscador Bibliográfico Cognitivo para Ciências Jurídicas</h3>", unsafe_allow_html=True)
-st.markdown("---")
+# Estilização completa do layout e dos componentes de aplicativo via CSS
+st.markdown("""
+    <style>
+        /* Ajuste de margens do Streamlit */
+        .block-container {
+            padding-top: 1rem;
+            padding-bottom: 0rem;
+        }
+        
+        /* Estilização corporativa para os botões expansíveis (Resumo/Índice) */
+        div[data-testid="stExpander"] {
+            border: 1px solid #E5E7EB !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+            border-radius: 6px !important;
+            margin-bottom: 10px !important;
+        }
+        
+        /* Banner Estruturado Vetorial com Efeito de Desfocagem de Fundo (Biblioteca) */
+        .banner-corporativo {
+            width: 100%;
+            height: 140px;
+            background: linear-gradient(rgba(26, 26, 26, 0.75), rgba(26, 26, 26, 0.75)), 
+                        url('https://unsplash.com');
+            background-size: cover;
+            background-position: center;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            padding-left: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 25px;
+            border: 1px solid #333;
+        }
+        
+        /* Logotipo Geométrico Oficial Olejnik em Vetor (Resolução Infinita) */
+        .caixa-logo {
+            width: 120px;
+            height: 95px;
+            background: linear-gradient(140deg, #ffffff 50%, #1a1a1a 50%);
+            border: 1px solid #1a1a1a;
+            position: relative;
+            font-family: 'Century Gothic', 'Segoe UI', Arial, sans-serif;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            flex-shrink: 0;
+        }
+        .texto-ed {
+            position: absolute;
+            top: 25px;
+            left: 10px;
+            color: #1a1a1a;
+            font-size: 16px;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
+        .texto-ol {
+            position: absolute;
+            bottom: 12px;
+            right: 10px;
+            color: #ffffff;
+            font-size: 19px;
+            font-style: italic;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Tipografia do Cabeçalho */
+        .bloco-titulos {
+            margin-left: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .titulo-principal {
+            color: #ffffff;
+            margin: 0;
+            font-size: 26px;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+        }
+        .sub-principal {
+            color: #9CA3AF;
+            margin: 4px 0 0 0;
+            font-size: 14px;
+            letter-spacing: 0.5px;
+        }
+    </style>
+    
+    <!-- Renderização do Banner Nítido sem dependência de imagem externa pesada -->
+    <div class='banner-corporativo'>
+        <div class='caixa-logo'>
+            <span class='texto-ed'>Ediciones</span>
+            <span class='texto-ol'>Olejnik</span>
+        </div>
+        <div class='bloco-titulos'>
+            <h1 class='titulo-principal'>Ediciones Olejnik</h1>
+            <p class='sub-principal'>Buscador Bibliográfico Cognitivo para Ciencias Jurídicas</p>
+        </div>
+    </div>
+""", unsafe_allow_html=True)
+
 
 # =====================================================================
 # 2. CARREGAMENTO DAS IMAGENS E PROCESSAMENTO DE DADOS (COM CACHE)
 # =====================================================================
 @st.cache_resource
 def inicializar_sistema_completo():
-    # ID real do seu arquivo capas.zip do Google Drive
     ID_CAPAS_DRIVE = "1CnfjblNWOhWWFNuq4gCs6XGKwMWW9bex"
     arquivo_capas_zip = "capas.zip"
     pasta_destino_capas = "capas"
     
-    # Baixa e extrai as 1.890 fotos diretamente no servidor do Streamlit
+    # Baixa e extrai as 1.890 fotos ordenadas por ISBN diretamente no servidor do Streamlit
     if not os.path.exists(pasta_destino_capas):
         try:
-            # Força o gdown a usar a URL estável para arquivos grandes do Drive
             url_drive = f'https://google.com{ID_CAPAS_DRIVE}'
             gdown.download(url_drive, arquivo_capas_zip, quiet=True, fuzzy=True)
             
@@ -99,7 +192,7 @@ def inicializar_sistema_completo():
     
     return retriever_ia, df_processado, f"✅ {len(df_processado)} livros do catálogo Olejnik integrados e operacionais!"
 
-# Inicialização do sistema
+# Inicialização do sistema com indicador visual de progresso
 with st.spinner("Inicializando o motor de IA e carregando o catálogo da Ediciones Olejnik..."):
     retriever, df_dados, mensagem_sistema = inicializar_sistema_completo()
 
@@ -107,7 +200,8 @@ if retriever is None:
     st.error(mensagem_sistema)
     st.stop()
 
-# Painel Lateral Informativo
+# Painel Lateral Informativo Corporativo
+st.sidebar.markdown("<h2 style='color: #1A1A1A; font-size: 20px;'>📊 Status do Sistema</h2>", unsafe_allow_html=True)
 st.sidebar.success(mensagem_sistema)
 st.sidebar.markdown("### 🛠️ Guia de Trabalho")
 st.sidebar.info("A **Pesquisa Cognitiva** faz uma varredura inteligente por IA em toda a doutrina. Os **Filtros** localizam termos e autores exatos.")
@@ -132,7 +226,7 @@ with aba_tradicional:
     col_f1, col_f2 = st.columns(2)
     with col_f1:
         autores_planilha = sorted(df_dados['Autor_Fixo'].dropna().unique())
-        autor_sel = st.selectbox("Selecione um Autor específico do catálogo:", [""] + autores_disponiveis if 'autores_disponiveis' in locals() else [""] + autores_planilha)
+        autor_sel = st.selectbox("Selecione um Autor específico do catálogo:", [""] + autores_planilha)
     with col_f2:
         termo_planilha = st.text_input("Buscar por termo exato no Título ou Matéria:")
         
@@ -142,60 +236,3 @@ with aba_tradicional:
             df_filtrado = df_filtrado[df_filtrado['Autor_Fixo'] == autor_sel]
         if termo_planilha:
             df_filtrado = df_filtrado[
-                df_filtrado['Titulo_Fixo'].str.contains(termo_planilha, case=False, na=False) |
-                df_filtrado['Materia Derecho'].astype(str).str.contains(termo_planilha, case=False, na=False) if 'Materia Derecho' in df_filtrado.columns else False
-            ]
-            
-        for _, r in df_filtrado.iterrows():
-            obras_localizadas.append({
-                "isbn_original": r.get('ISBN-EAN', r['ISBN_Chave']),
-                "isbn_chave": r['ISBN_Chave'],
-                "titulo": r['Titulo_Fixo'],
-                "autor": r['Autor_Fixo'],
-                "resumo": r['Reseña_Fixa'],
-                "indice": r['Indice_Fixo']
-            })
-
-# =====================================================================
-# 4. EXIBIÇÃO ORGANIZADA E DIAGRAMADA DOS LIVROS
-# =====================================================================
-if obras_localizadas:
-    st.subheader(f"📋 Resultados Encontrados ({len(obras_localizadas)}):")
-    st.write("---")
-    
-    vistos = set()
-    obras_unicas = []
-    for obra in obras_localizadas:
-        if obra['isbn_chave'] not in vistos:
-            vistos.add(obra['isbn_chave'])
-            obras_unicas.append(obra)
-            
-    for item in obras_unicas:
-        isbn_alvo = item['isbn_chave']
-        
-        # Estrutura de varredura inteligente de caminhos possíveis para achar as capas extraídas
-        rotas_capas = [
-            f"capas/{isbn_alvo}.jpg", f"capas/{isbn_alvo}.png", f"capas/{isbn_alvo}.jpeg",
-            f"capas/capas/{isbn_alvo}.jpg", f"capas/capas/{isbn_alvo}.png"
-        ]
-        caminho_capa_final = next((c for c in rotas_capas if os.path.exists(c)), None)
-        
-        col_esq, col_dir = st.columns([1, 4]) # Mantém a proporção exata de colunas na tela
-        
-        with col_esq:
-            if caminho_capa_final:
-                st.image(caminho_capa_final, width=160)
-            else:
-                # Exibe o card azul estável com o Título e o ISBN se a foto física ainda não estiver no servidor
-                card_azul_html = f"<div style='background-color: #1E3A8A; color: #FFFFFF; padding: 22px 12px; border-radius: 6px; text-align: center; min-height: 225px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; border: 1px solid #1D4ED8; box-shadow: 2px 2px 8px rgba(0,0,0,0.15);'><div style='font-size: 11px; font-weight: bold; line-height: 1.3;'>{item['titulo']}</div><div style='background-color: #172554; padding: 4px 6px; border-radius: 4px; font-size: 10px; font-family: monospace; width: 100%;'>ISBN {item['isbn_original']}</div></div>"
-                st.markdown(card_azul_html, unsafe_allow_html=True)
-                
-        with col_dir:
-            st.markdown(f"### **{item['titulo']}**")
-            st.markdown(f"👤 **Autor:** {item['autor']}  |  🆔 **ISBN do Livro:** {item['isbn_original']}")
-            
-            with st.expander("📝 Ver Resumen Técnico / Reseña Completa"):
-                st.write(item['resumo'])
-                
-            with st.expander("📖 Ver Sumário / Índice Detalhado por Capítulos"):
-                st.text(item['indice'])

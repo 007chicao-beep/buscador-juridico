@@ -139,11 +139,10 @@ if obras_localizadas:
         st.markdown(f"**Autor:** {item['Autor_Fixo']} | **ISBN:** {item['ISBN-EAN']}")
         
         # LINK DO SEU STORAGE PÚBLICO DO SUPABASE:
-        # Puxa o link direto e leve do seu servidor que já está configurado com as capas
         url_capa_supabase = f"https://supabase.co{item['ISBN_Chave']}.jpg"
         
-        # Mantém a estrutura limpa de colunas originais do Streamlit
-        col_foto, col_botoes = st.columns()
+        # CORREÇÃO CRUCIAL AQUI: Especificamos explicitamente a criação de 2 colunas
+        col_foto, col_botoes = st.columns(2)
         
         with col_foto:
             # Carrega a imagem do Supabase de forma instantânea

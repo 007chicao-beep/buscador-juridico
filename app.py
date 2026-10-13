@@ -1,6 +1,4 @@
 import os
-import zipfile
-import gdown
 import pandas as pd
 import streamlit as st
 from langchain_core.documents import Document
@@ -16,29 +14,10 @@ st.markdown("<h3 style='text-align: center; color: #555;'>Buscador Bibliográfic
 st.markdown("---")
 
 # =====================================================================
-# 2. CARREGAMENTO DAS IMAGENS E PROCESSAMENTO DE DADOS (COM CACHE)
+# 2. PROCESSAMENTO DE DADOS (COM CACHE)
 # =====================================================================
 @st.cache_resource
 def inicializar_sistema_completo():
-    # ID real do seu arquivo capas.zip do Google Drive
-    ID_CAPAS_DRIVE = "1CnfjblNWOhWWFNuq4gCs6XGKwMWW9bex"
-    arquivo_capas_zip = "capas.zip"
-    pasta_destino_capas = "capas"
-    
-    # Baixa e extrai as 1.890 fotos diretamente no servidor do Streamlit
-    if not os.path.exists(pasta_destino_capas):
-        try:
-            # Força o gdown a usar a URL estável para arquivos grandes do Drive
-            url_drive = f'https://google.com{ID_CAPAS_DRIVE}'
-            gdown.download(url_drive, arquivo_capas_zip, quiet=True, fuzzy=True)
-            
-            if os.path.exists(arquivo_capas_zip):
-                with zipfile.ZipFile(arquivo_capas_zip, 'r') as zip_ref:
-                    zip_ref.extractall(pasta_destino_capas)
-                os.remove(arquivo_capas_zip) # Limpa o zip para poupar espaço
-        except Exception as e:
-            pass
-
     # Localiza a Planilha Excel na raiz do GitHub
     caminho_excel = None
     for arquivo in os.listdir('.'):
@@ -176,12 +155,24 @@ if obras_localizadas:
         st.markdown(f"### {item['titulo']}")
         st.markdown(f"**Autor:** {item['autor']} | **ISBN:** {item['isbn_original']}")
         
-        # Retorna aos botões originais que você tinha na primeira versão
-        with st.expander("▶️ Ver Resumen Técnico"):
-            st.write(item['resumo'])
+        # BUSCA DIRETA PELA CAPA NA WEB (Sem precisar baixar zip ou gdown)
+        # Link público direto que puxa a foto do catálogo oficial pelo número do ISBN
+        url_capa_web = f"https://edicionesolejnik.com{item['isbn_chave']}.jpg"
+        
+        # Cria duas colunas para colocar a foto elegantemente ao lado dos botões sem amassar o texto
+        col_foto, col_botoes = st.columns([1, 5])
+        
+        with col_foto:
+            # Mostra a imagem direto da URL oficial se o link responder, mantendo tamanho perfeito
+            st.image(url_capa_web, width=140)
             
-        with st.expander("▶️ Ver Sumário"):
-            st.write(item['indice'])
+        with col_botoes:
+            # Mantém intactas as suas sanfonas exatamente na mesma posição e largura originais
+            with st.expander("▶️ Ver Resumen Técnico"):
+                st.write(item['resumo'])
+                
+            with st.expander("▶️ Ver Sumário"):
+                st.write(item['indice'])
             
         st.write("---")
 else:

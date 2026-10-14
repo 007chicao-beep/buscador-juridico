@@ -1,159 +1,87 @@
-import os
-import pandas as pd
 import streamlit as st
+from supabase import create_client, Client
+import openai  # Se for usar OpenAI para gerar os vetores cognitivos
 
-# =====================================================================
-# 1. CONFIGURAÇÃO VISUAL DA ABA DO NAVEGADOR
-# =====================================================================
-st.set_page_config(page_title="Ediciones Olejnik - Buscador IA", page_icon="⚖️", layout="wide")
+# 🔐 1. Conexão Segura com o seu Banco do Supabase
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Cabeçalho original intacto com a identidade visual da Editora
-st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>⚖️ Ediciones Olejnik</h1>", unsafe_allow_html=True)
-st.markdown("<h3 style='text-align: center; color: #555;'>Buscador Bibliográfico Cognitivo para Ciências Jurídicas</h3>", unsafe_allow_html=True)
-st.markdown("---")
+# Configuração da Página do App
+st.set_page_config(page_title="Ediciones Olejnik - Buscador Cognitivo", page_icon="⚖️", layout="wide")
 
-# =====================================================================
-# 2. CARREGAMENTO E PROCESSAMENTO LEVE DE DADOS (SEM USO DE RAM PESADA)
-# =====================================================================
-@st.cache_resource
-def inicializar_sistema_completo():
-    caminho_excel = None
-    for arquivo in os.listdir('.'):
-        if arquivo.lower().endswith(('.xlsx', '.xls', '.csv')) and not arquivo.startswith('~$'):
-            caminho_excel = arquivo
-            break
+st.title("⚖️ Ediciones Olejnik")
+st.subheader("Buscador Bibliográfico Cognitivo para Ciências Jurídicas")
+
+# 🎨 2. Painel de Filtros Avançados na Interface
+col1, col2, col3 = st.columns([2, 1, 1])
+
+with col1:
+    termo_pesquisa = st.text_input(
+        "O que você está procurando?", 
+        placeholder="Digite um Autor, Título, ISBN, País ou um Caso Concreto/Dúvida Jurídica..."
+    )
+
+with col2:
+    filtro_pais = st.selectbox("Filtrar por País", ["Todos", "Argentina", "Chile", "Espanha", "Venezuela", "Colômbia", "México"])
+    if filtro_pais == "Todos": filtro_pais = None
+
+with col3:
+    filtro_materia = st.selectbox("Filtrar por Matéria", ["Todas", "Direito Civil", "Direito Penal", "Direito Tributário", "Direito Administrativo"])
+    if filtro_materia == "Todas": filtro_materia = None
+
+# 🧠 3. Mecanismo de Execução ao Clicar em Buscar
+if st.button("Iniciar Busca Inteligente", type="primary"):
+    if termo_pesquisa:
+        with st.spinner("Analisando o acervo doutrinário..."):
             
-    if not caminho_excel:
-        return None, "❌ Erro: Planilha Excel não localizada na raiz do seu GitHub. Garanta o upload do arquivo junto ao código!"
-
-    df_base = pd.read_excel(caminho_excel, header=0)
-    df_base.columns = [str(c).strip() for c in df_base.columns]
-
-    lista_obras_atualizada = []
-
-    for idx, row in df_base.iterrows():
-        titulo_obra = str(row.get('Titulo - Sub.titulo', row.get('Título', 'Sem Título'))).strip()
-        autor_obra = str(row.get('Autor', 'Autor Desconhecido')).strip()
-        
-        raw_isbn = str(row.get('ISBN-EAN', '')).strip().replace('.0', '')
-        isbn_limpo = "".join([c for c in raw_isbn if c.isdigit()])
-        if not isbn_limpo: 
-            continue
+            # Variável para guardar o vetor caso seja uma busca cognitiva por IA
+            vetor_pesquisa = None
             
-        txt_resenha = str(row.get('Reseña', 'Reseña técnica disponible bajo consulta en la Editorial.')).strip()
-        txt_indice = str(row.get('Indice_Completo', 'Índice detalhado disponible bajo consulta.')).strip()
-        
-        if txt_resenha.lower() == 'nan' or not txt_resenha:
-            txt_resenha = "Reseña técnica disponible bajo consulta en la Editorial."
-        if txt_indice.lower() == 'nan' or not txt_indice:
-            txt_indice = "Índice detalhado disponible bajo consulta."
+            # Regra: Se o texto for longo, geramos o embedding (Vetor) para busca cognitiva
+            if len(termo_pesquisa.split()) > 3 and not termo_pesquisa.isdigit():
+                # Exemplo usando OpenAI para transformar a frase do advogado em vetor
+                openai.api_key = st.secrets["OPENAI_API_KEY"]
+                response = openai.Embedding.create(
+                    input=[termo_pesquisa],
+                    model="text-embedding-3-small"
+                )
+                vetor_pesquisa = response['data'][0]['embedding']
 
-        obra_dict = row.to_dict()
-        obra_dict['ISBN_Chave'] = isbn_limpo
-        obra_dict['Titulo_Fixo'] = titulo_obra
-        obra_dict['Autor_Fixo'] = autor_obra
-        obra_dict['Reseña_Fixa'] = txt_resenha
-        obra_dict['Indice_Fixo'] = txt_indice
-        
-        obra_dict['Materia_Fixa'] = str(row.get('Materia Derecho', '')).strip()
-        obra_dict['SubMateria_Fixa'] = str(row.get('Sub. Materia', '')).strip()
-        
-        lista_obras_atualizada.append(obra_dict)
-        
-    df_processado = pd.DataFrame(lista_obras_atualizada)
-    return df_processado, f"✅ {len(df_processado)} livros do catálogo Olejnik operacionais com segurança de memória!"
+            try:
+                # 🔌 Chamada direta da função customizada que instalamos no Supabase
+                resposta_banco = supabase.rpc(
+                    "buscar_acervo_olejnik",
+                    {
+                        "termo_pesquisa": termo_pesquisa,
+                        "filtro_pais": filtro_pais,
+                        "filtro_materia": filtro_materia,
+                        "query_embedding": vetor_pesquisa
+                    }
+                ).execute()
 
-# Inicialização rápida do sistema
-with st.spinner("Carregando o catálogo da Ediciones Olejnik de forma otimizada..."):
-    df_dados, mensagem_sistema = inicializar_sistema_completo()
+                resultados = resposta_banco.data
 
-if df_dados is None:
-    st.error(mensagem_sistema)
-    st.stop()
+                # 📊 4. Exibição dos Cards de Resultados na Tela
+                if resultados:
+                    st.success(f"Encontramos {len(resultados)} correspondências no acervo da Olejnik:")
+                    
+                    for livro in resultados:
+                        with st.container():
+                            st.markdown(f"### 📕 {livro['titulo']}")
+                            st.write(f"**Autor:** {livro['autor']} | **País:** {livro['pais']} | **ISBN:** {livro['isbn']}")
+                            st.write(f"**Área:** {livro['materia_direito']} ({livro['sub_materia']})")
+                            
+                            # Indica se achou por termo exato ou por interpretação de IA
+                            if livro['tipo_busca'] == 'Cognitiva (IA)':
+                                st.info(f"💡 *Encontrado via Inteligência Artificial Cognitiva (Afinidade: {round(livro['similaridade'] * 100)}%)*")
+                            else:
+                                st.caption("🔍 *Correspondência direta de dados catalogados*")
+                            st.markdown("---")
+                else:
+                    st.warning("Nenhum livro foi encontrado com os critérios informados.")
 
-# Painel Lateral Informativo original estável
-st.sidebar.success(mensagem_sistema)
-st.sidebar.markdown("### 🛠️ Guia de Trabalho")
-st.sidebar.info("O sistema de busca foi otimizado para rodar de forma ultra-leve e estável, garantindo a exibição das capas e a segurança do servidor.")
-
-# =====================================================================
-# 3. INTERFACE DE MÚLTIPLAS ABAS DE BUSCA
-# =====================================================================
-aba_ia, aba_tradicional = st.tabs(["🧠 Pesquisa por Palavra-Chave Ampliada", "🔍 Filtros Tradicionais (Autor / Termo Exato)"])
-
-obras_localizadas = []
-
-with aba_ia:
-    pergunta_advogado = st.text_input("Descreva o caso jurídico, tese ou área que você deseja consultar (PT / ES):", 
-                                     placeholder="Ex: Carga de la prueba en el processo... ", key="busca_ia")
-    if pergunta_advogado:
-        df_busca = df_dados[
-            df_dados['Titulo_Fixo'].str.contains(pergunta_advogado, case=False, na=False) |
-            df_dados['Reseña_Fixa'].str.contains(pergunta_advogado, case=False, na=False) |
-            df_dados['Indice_Fixo'].str.contains(pergunta_advogado, case=False, na=False) |
-            df_dados['Materia_Fixa'].str.contains(pergunta_advogado, case=False, na=False)
-        ].head(4)
-        
-        for _, r in df_busca.iterrows():
-            obras_localizadas.append(r.to_dict())
-
-with aba_tradicional:
-    col_f1, col_f2 = st.columns(2)
-    with col_f1:
-        autores_planilha = sorted(df_dados['Autor_Fixo'].dropna().unique())
-        autor_sel = st.selectbox("Selecione um Autor específico do catálogo:", [""] + autores_planilha)
-    with col_f2:
-        termo_planilha = st.text_input("Buscar por termo exato no Título ou Matéria:")
-        
-    if autor_sel or termo_planilha:
-        df_filtrado = df_dados.copy()
-        if autor_sel:
-            df_filtrado = df_filtrado[df_filtrado['Autor_Fixo'] == autor_sel]
-        if termo_planilha:
-            condicao_titulo = df_filtrado['Titulo_Fixo'].str.contains(termo_planilha, case=False, na=False)
-            condicao_materia = df_filtrado['Materia_Fixa'].str.contains(termo_planilha, case=False, na=False)
-            df_filtrado = df_filtrado[condicao_titulo | condicao_materia]
-            
-        for _, r in df_filtrado.iterrows():
-            obras_localizadas.append(r.to_dict())
-
-# =====================================================================
-# 4. EXIBIÇÃO ORGANIZADA E DIAGRAMADA DOS LIVROS WITH SUPABASE IMAGES
-# =====================================================================
-if obras_localizadas:
-    st.subheader(f"📋 Resultados Encontrados ({len(obras_localizadas)}):")
-    st.write("---")
-    
-    vistos = set()
-    obras_unicas = []
-    for obra in obras_localizadas:
-        if obra['ISBN_Chave'] not in vistos:
-            vistos.add(obra['ISBN_Chave'])
-            obras_unicas.append(obra)
-            
-    for item in obras_unicas:
-        st.markdown(f"### {item['Titulo_Fixo']}")
-        st.markdown(f"**Autor:** {item['Autor_Fixo']} | **ISBN:** {item['ISBN-EAN']}")
-        
-        # ROTA DE SERVIDOR 100% CORRIGIDA COM O SEU LINK REAL:
-        url_capa_supabase = f"https://lvenvwkuwtibosrdujkj.supabase.co/storage/v1/object/public/capas/capas/{item['ISBN_Chave']}.jpg"
-        
-        # Organização em colunas idêntica ao seu padrão original aprovado
-        col_foto, col_botoes = st.columns(2)
-        
-        with col_foto:
-            # Renderiza a capa puxada direto da rota oficial corrigida
-            st.image(url_capa_supabase, width=140)
-            
-        with col_botoes:
-            # Preserva integralmente suas sanfonas e a largura dos textos originais
-            with st.expander("▶️ Ver Resumen Técnico"):
-                st.write(item['Reseña_Fixa'])
-                
-            with st.expander("▶️ Ver Sumário"):
-                st.write(item['Indice_Fixo'])
-            
-        st.write("---")
-else:
-    if 'pergunta_advogado' in locals() and (pergunta_advogado or autor_sel or termo_planilha):
-        st.warning("⚠️ Nenhum livro foi localizado com os termos aplicados.")
+            except Exception as e:
+                st.error(f"Erro ao conectar com o motor de busca: {e}")
+    else:
+        st.info("Por favor, digite um termo ou frase para pesquisar.")

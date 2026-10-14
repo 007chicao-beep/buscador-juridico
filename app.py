@@ -46,7 +46,7 @@ if st.button("Iniciar Busca Inteligente", type="primary"):
                     input=[termo_pesquisa],
                     model="text-embedding-3-small"
                 )
-                vetor_pesquisa = response['data'][0]['embedding']
+                vetor_pesquisa = response.data[0].embedding
 
             try:
                 # 🔌 Chamada direta da função customizada que instalamos no Supabase
